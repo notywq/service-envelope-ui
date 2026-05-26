@@ -293,6 +293,7 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
                       size="small"
                       onClick={() => setDeleteConfirmId(template.id)}
                       title="Delete"
+                      sx={{ color: 'error.main' }}
                     >
                       <DeleteIcon fontSize="small" />
                     </IconButton>
@@ -486,9 +487,9 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteConfirmId !== null} onClose={() => setDeleteConfirmId(null)}>
-        <DialogTitle>Delete Template?</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 600, color: 'text.primary' }}>Delete Template?</DialogTitle>
         <DialogContent>
-          <Typography>
+          <Typography sx={{ color: 'text.primary', fontWeight: 500 }}>
             Are you sure you want to delete this template? This action cannot be undone.
           </Typography>
         </DialogContent>
