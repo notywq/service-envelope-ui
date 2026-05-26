@@ -172,18 +172,19 @@ export const EmailTemplateManager: React.FC = () => {
 
         <!-- Action Section -->
         <div style="text-align: center; margin-bottom: 30px;">
-          <a href="{{dashboardUrl}}" style="display: inline-block; background-color: #667eea; color: #ffffff; text-decoration: none; padding: 12px 30px; border-radius: 4px; font-weight: 600; font-size: 15px; transition: background-color 0.3s;">
-            View Request Details
+          <a href="{{approvalLink}}" style="display: inline-block; background-color: #667eea; color: #ffffff; text-decoration: none; padding: 12px 30px; border-radius: 4px; font-weight: 600; font-size: 15px; transition: background-color 0.3s;">
+            Review Request
           </a>
         </div>
 
         <!-- Next Steps -->
         <div style="background-color: #f0f4ff; padding: 20px; border-radius: 4px; margin-bottom: 25px;">
-          <h3 style="margin: 0 0 10px 0; font-size: 15px; font-weight: 600; color: #333333;">What Happens Next?</h3>
+          <h3 style="margin: 0 0 10px 0; font-size: 15px; font-weight: 600; color: #333333;">What You Need To Do</h3>
           <ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.8; color: #555555;">
-            <li>Your request will be reviewed by {{approverName}}</li>
-            <li>The review process typically takes 2-3 business days</li>
-            <li>You will receive updates via email as the status changes</li>
+            <li>Click the "Review Request" button above to view the full request details</li>
+            <li>Review the request information carefully</li>
+            <li>Approve or deny the request with your feedback</li>
+            <li>Your approval link will expire in 7 days</li>
           </ul>
         </div>
 

@@ -10,6 +10,12 @@ import type {
   ServiceListResponse,
   RequestsListResponse,
   ApprovalTokenResponse,
+  RequestDetailResponse,
+  FullServiceRequest,
+  PaymentCompleteRequest,
+  PaymentCompleteResponse,
+  PaymentFailureRequest,
+  PaymentFailureResponse,
   RequestFilters,
 } from '../types';
 
@@ -131,10 +137,17 @@ class ApiClient {
     return response.data;
   }
 
+  async getApprovalRequest(token: string): Promise<RequestDetailResponse> {
+    const response = await this.client.get<RequestDetailResponse>(
+      `/api/approvals/${token}/request`
+    );
+    return response.data;
+  }
+
   async approveRequest(
     token: string,
     comment: string = ''
-  ): Promise<{ requestId: string; status: string; message: string }> {
+  ): Promise<{ requestId: string; status: string; message: string; allApproved: boolean }> {
     const response = await this.client.post(
       `/api/approvals/${token}/approve`,
       { comment }
@@ -177,7 +190,10 @@ class ApiClient {
     const response = await this.client.put(`/api/admin/services/${serviceId}`, data);
     return response.data;
   }
-
+  async deleteService(serviceId: string) {
+    const response = await this.client.delete(`/api/services/${serviceId}`);
+    return response.data;
+  }
   // ========== EMAIL TEMPLATE ENDPOINTS ==========
 
   async getEmailTemplates() {
@@ -219,6 +235,37 @@ class ApiClient {
 
   async deleteEmailTemplate(templateId: string) {
     const response = await this.client.delete(`/api/admin/email-templates/${templateId}`);
+    return response.data;
+  }
+
+  // ========== REQUEST DETAILS ENDPOINT ==========
+
+  async getFullRequest(requestId: string): Promise<FullServiceRequest> {
+    const response = await this.client.get<FullServiceRequest>(`/api/requests/${requestId}`);
+    return response.data;
+  }
+
+  // ========== PAYMENT ENDPOINTS ==========
+
+  async completePayment(
+    requestId: string,
+    data: PaymentCompleteRequest
+  ): Promise<PaymentCompleteResponse> {
+    const response = await this.client.post<PaymentCompleteResponse>(
+      `/api/payments/${requestId}/complete`,
+      data
+    );
+    return response.data;
+  }
+
+  async failPayment(
+    requestId: string,
+    data: PaymentFailureRequest
+  ): Promise<PaymentFailureResponse> {
+    const response = await this.client.post<PaymentFailureResponse>(
+      `/api/payments/${requestId}/failed`,
+      data
+    );
     return response.data;
   }
 

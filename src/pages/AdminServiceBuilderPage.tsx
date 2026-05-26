@@ -15,18 +15,42 @@ import {
   Paper,
   Tabs,
   Tab,
-  List,
-  ListItem,
-  ListItemText,
   Select,
   MenuItem,
   FormControl,
   InputLabel,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  IconButton,
+  Chip,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Card,
+  CardContent,
+  Divider,
+  Tooltip,
 } from '@mui/material';
 import {
   Save as SaveIcon,
   Check as CheckIcon,
   Error as ErrorIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  ExpandMore as ExpandMoreIcon,
+  Code as CodeIcon,
+  MenuBook as MenuBookIcon,
+  Lightbulb as LightbulbIcon,
+  ContentCopy as ContentCopyIcon,
+  CheckCircle as CheckCircleIcon,
 } from '@mui/icons-material';
 import YAML from 'js-yaml';
 import { api } from '../services/api';
@@ -63,6 +87,9 @@ export const AdminServiceBuilderPage: React.FC = () => {
   const [selectedServiceId, setSelectedServiceId] = useState<string>('');
   const [isEditingExisting, setIsEditingExisting] = useState(false);
   const [emailTemplates, setEmailTemplates] = useState<any[]>([]);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [serviceToDelete, setServiceToDelete] = useState<any>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const loadServices = async () => {
@@ -180,6 +207,11 @@ export const AdminServiceBuilderPage: React.FC = () => {
         });
         addNotification(`Service "${serviceName}" created successfully!`, 'success');
       }
+      
+      // Reload services list
+      const response = await api.getServices();
+      setServices(response.services || []);
+      
       setServiceName('');
       setYamlContent('');
       setParsedYaml(null);
@@ -214,6 +246,45 @@ export const AdminServiceBuilderPage: React.FC = () => {
     setValidationErrors([]);
     setSelectedServiceId('');
     setIsEditingExisting(false);
+  };
+
+  const handleDeleteClick = (service: any) => {
+    setServiceToDelete(service);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!serviceToDelete) return;
+
+    try {
+      setDeleting(true);
+      await api.deleteService(serviceToDelete.id);
+      addNotification(`Service "${serviceToDelete.name}" deleted successfully!`, 'success');
+      
+      // Reload services
+      const response = await api.getServices();
+      setServices(response.services || []);
+      
+      // Reset form if we were editing the deleted service
+      if (selectedServiceId === serviceToDelete.id) {
+        handleCreateNew();
+      }
+      
+      setDeleteDialogOpen(false);
+      setServiceToDelete(null);
+    } catch (err: any) {
+      addNotification(
+        err.response?.data?.error || 'Failed to delete service',
+        'error'
+      );
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleCancelDelete = () => {
+    setDeleteDialogOpen(false);
+    setServiceToDelete(null);
   };
 
   const loadTemplate = (template: string) => {
@@ -295,11 +366,13 @@ envelopes:
 
       {/* Tabs */}
       <Paper>
-        <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)}>
+        <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)} variant="scrollable" scrollButtons="auto" sx={{ '& .MuiTab-root': { fontSize: '0.7rem !important', minWidth: '65px !important', padding: '4px 10px !important' } }}>
           <Tab label="Builder" />
+          <Tab label="Manage Services" />
           <Tab label="YAML Structure Guide" />
           <Tab label="Envelope Guide" />
           <Tab label="Examples" />
+          <Tab label="Quick Reference" />
           <Tab label="Email Templates" />
         </Tabs>
 
@@ -458,434 +531,784 @@ envelopes:
           </Stack>
         </TabPanel>
 
-        {/* YAML Structure Guide */}
+        {/* Manage Services Tab */}
         <TabPanel value={tabValue} index={1}>
-          <Stack spacing={2} sx={{ p: 3 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              YAML Service Definition Structure
-            </Typography>
-
-            <Paper variant="outlined" sx={{ p: 2, backgroundColor: '#f5f5f5', textAlign: 'left' }}>
-              <Typography component="pre" sx={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.85rem', textAlign: 'left', margin: 0 }}>
-{`id: SERV-X-04152026                       # Unique service identifier with date
-name: Service Name                          # Human-readable service name
-description: What this service does         # Brief description
-type: unique-service-type                   # Service type identifier
-initiator: admin_portal|student_portal|etc  # System initiating requests
-
-envelopes:                                   # Required: All 6 envelopes
-  request:                                   # Incoming request configuration
-    required: true
-    parameters:                              # Custom parameters for your service
-      fieldName: ""                          # Key-value pairs (not array!)
-      anotherField: ""
-      thirdField: ""
-  
-  approval:                                  # Approval workflow
-    required: true|false
-    approvers:
-      - id: identifier
-        role: role-name
-        status: pending
-    approvalRules:
-      type: all_must_approve|any_one
-  
-  payment:                                   # Payment processing
-    required: true|false
-    charges:
-      - item: "Charge description"
-        amount: 500.00
-        currency: PHP
-    paymentMethod: credit_card
-  
-  processing:                                # Business logic tasks
-    required: true|false
-    tasks:
-      - name: task-name
-        description: What this task does
-      - name: another-task
-        description: Another task
-  
-  delivery:                                  # Result delivery
-    required: true|false
-    method: email|sms|webhook
-    details:
-      subject: "Email subject line"
-      templateId: template-identifier
-  
-  feedback:                                  # User feedback collection
-    required: true|false
-    autoCloseOnExpiry: "7 days"`}
-              </Typography>
-            </Paper>
-
+          <Stack spacing={3} sx={{ p: 3 }}>
             <Box>
-              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                Key Fields Explained:
+              <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                Manage Services
               </Typography>
-              <List dense>
-                <ListItem>
-                  <ListItemText
-                    primary="id"
-                    secondary="Unique identifier (e.g., 'SERV-1-04152026')"
-                  />
-                </ListItem>
-                <ListItem>
-                  <ListItemText
-                    primary="name"
-                    secondary="Human-readable service name (e.g., 'Course Enrollment')"
-                  />
-                </ListItem>
-                <ListItem>
-                  <ListItemText
-                    primary="type"
-                    secondary="Unique code for this service (e.g., 'courseEnrollment')"
-                  />
-                </ListItem>
-                <ListItem>
-                  <ListItemText
-                    primary="initiator"
-                    secondary="The system/portal that initiates requests (e.g., 'admin_portal')"
-                  />
-                </ListItem>
-                <ListItem>
-                  <ListItemText
-                    primary="parameters"
-                    secondary="Custom fields needed as key-value pairs: {studentId: '', courseCode: '', ...}"
-                  />
-                </ListItem>
-                <ListItem>
-                  <ListItemText
-                    primary="approvers"
-                    secondary="Who needs to approve this service request with their roles"
-                  />
-                </ListItem>
-                <ListItem>
-                  <ListItemText
-                    primary="charges"
-                    secondary="Any payments required (item, amount, currency)"
-                  />
-                </ListItem>
-                <ListItem>
-                  <ListItemText
-                    primary="tasks"
-                    secondary="Processing steps to execute in sequence"
-                  />
-                </ListItem>
-                <ListItem>
-                  <ListItemText
-                    primary="templateId (Delivery Envelope)"
-                    secondary="Reference an email template here. Must exist in Email Templates tab. Use format: 'template-identifier'. The template's {{variables}} will be auto-filled from request parameters."
-                  />
-                </ListItem>
-              </List>
+              <Typography variant="body2" color="textSecondary" sx={{ mb: 2, color: '#555' }}>
+                View, edit, or delete existing services
+              </Typography>
             </Box>
 
-            <Paper variant="outlined" sx={{ p: 2, backgroundColor: '#e8f5e9' }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                📧 Using Email Templates in Delivery Envelope
-              </Typography>
-              <Stack spacing={1}>
-                <Box>
-                  <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                    Step 1: Create an Email Template
-                  </Typography>
-                  <Typography variant="caption" sx={{ display: 'block' }}>
-                    Go to the "Email Templates" tab and create a new template. Use `{'{{variableName}}'}`{''} syntax in the HTML body for dynamic content (e.g., `{'{{studentName}}'}`{''}, `{'{{requestId}}'}`{''}, `{'{{status}}'}`{''}).
-                  </Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                    Step 2: Reference in Delivery Envelope
-                  </Typography>
-                  <Typography component="div" sx={{ fontFamily: 'monospace', fontSize: '0.8rem', backgroundColor: '#f5f5f5', p: 1, borderRadius: 0.5, my: 0.5 }}>
-                    {`delivery:\n  required: true\n  method: email\n  details:\n    subject: "Request Status"\n    templateId: enrollment_confirmation`}
-                  </Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                    Step 3: Ensure Request Parameters Match Template Variables
-                  </Typography>
-                  <Typography variant="caption" sx={{ display: 'block' }}>
-                    If your template has `{'{{studentName}}'}`{''}, add a "studentName" parameter in the request envelope. Variables are auto-matched and populated when the email is sent.
-                  </Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                    💡 Pro Tip:
-                  </Typography>
-                  <Typography variant="caption" sx={{ display: 'block' }}>
-                    You can update email templates anytime without redeploying your service. Just go to Email Templates tab, edit the template, and save. Next email will use the updated template.
-                  </Typography>
-                </Box>
-              </Stack>
-            </Paper>
+            {loadingServices ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+                <CircularProgress />
+              </Box>
+            ) : services.length === 0 ? (
+              <Alert severity="info">
+                No services found. Create a new service in the Builder tab.
+              </Alert>
+            ) : (
+              <TableContainer component={Paper} variant="outlined">
+                <Table>
+                  <TableHead sx={{ bgcolor: '#f5f5f5' }}>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600 }}>Service Name</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Service ID</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }} align="right">
+                        Actions
+                      </TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {services.map((service) => (
+                      <TableRow key={service.id} hover>
+                        <TableCell sx={{ fontWeight: 500 }}>{service.name}</TableCell>
+                        <TableCell>
+                          <Chip label={service.type} size="small" variant="outlined" sx={{ fontWeight: 500 }} />
+                        </TableCell>
+                        <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.85rem', color: '#333', fontWeight: 500 }}>
+                          {service.id}
+                        </TableCell>
+                        <TableCell align="right">
+                          <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end' }}>
+                            <IconButton
+                              size="small"
+                              color="primary"
+                              onClick={() => handleLoadService(service.id)}
+                              title="Edit service"
+                            >
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => handleDeleteClick(service)}
+                              title="Delete service"
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Stack>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
           </Stack>
         </TabPanel>
 
-        {/* Envelope Guide */}
+        {/* YAML Structure Guide - Interactive Ruleset */}
         <TabPanel value={tabValue} index={2}>
           <Stack spacing={3} sx={{ p: 3 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              Understanding Each Envelope
-            </Typography>
+            <Box>
+              <Typography variant="h5" sx={{ fontWeight: 700, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <CodeIcon sx={{ color: '#1976d2' }} />
+                YAML Ruleset & Tools
+              </Typography>
+              <Typography variant="body2" color="textSecondary" sx={{ textAlign: 'left' }}>
+                The ruleset is simple: define what you need in each envelope. Here are your tools:
+              </Typography>
+            </Box>
+
+            {/* Core Structure */}
+            <Card sx={{ bgcolor: '#f8f9fa', border: '2px solid #e0e0e0' }}>
+              <CardContent>
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <CheckCircleIcon sx={{ color: '#4caf50' }} />
+                  Basic Service Structure
+                </Typography>
+                <Typography component="pre" sx={{ 
+                  fontFamily: 'monospace', 
+                  fontSize: '0.9rem', 
+                  overflow: 'auto',
+                  bgcolor: '#1e1e1e',
+                  color: '#d4d4d4',
+                  p: 2,
+                  borderRadius: 1,
+                  lineHeight: 1.6,
+                  textAlign: 'left',
+                }}>
+{`id: SERV-X-YYYYMMDD          # Unique ID with date
+name: Service Name             # Human-readable name
+description: What it does      # Brief description
+type: serviceType              # Internal type (camelCase)
+serviceCode: CODE              # Short code (TOR, RR, CVR)
+initiator: student_portal      # Who starts requests
+
+envelopes:
+  request:      { ... parameters ... }
+  approval:     { ... approvers & rules ... }
+  payment:      { ... charges ... }
+  processing:   { ... tasks ... }
+  delivery:     { ... email or pickup ... }
+  feedback:     { ... survey questions ... }`}
+                </Typography>
+              </CardContent>
+            </Card>
+
+            {/* The 6 Tools */}
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, textAlign: 'left' }}>
+                🎮 Your 6 Tools
+              </Typography>
+              <Stack spacing={2}>
+                {[
+                  {
+                    title: '1️⃣ Request Parameters - "What Do You Want To Ask?"',
+                    color: '#bbdefb',
+                    content: `Add ANY number of parameters (1, 5, 20, 100+) in key-value pairs:
+                    
+studentId: String
+email: String
+firstName: String
+numberOfCopies: Number (1-5)
+purpose: String (Scholarship, Employment, etc)
+deliveryMode: String (Pickup, Mail, Email)`,
+                  },
+                  {
+                    title: '2️⃣ Approval Rules - "Who Decides?"',
+                    color: '#c8e6c9',
+                    content: `Choose your approval strategy:
+
+• specific_approver: One person signs off
+• any_one: First person to approve wins
+• all_must_approve: Everyone must sign
+• complex: Head + at least one team member`,
+                  },
+                  {
+                    title: '3️⃣ Payment Rules - "What\'s The Cost?"',
+                    color: '#ffe0b2',
+                    content: `Free or paid:
+
+• required: false → Free service
+• required: true → Itemized charges:
+    - item: Processing Fee
+      amount: 200
+      currency: PHP`,
+                  },
+                  {
+                    title: '4️⃣ Processing Tasks - "What Happens Behind The Scenes?"',
+                    color: '#f8bbd0',
+                    content: `Chain tasks in sequence:
+
+• custom_function: verify_student, generate_document
+• api_call: Call external registrar, document system
+• webhook: Trigger external workflows`,
+                  },
+                  {
+                    title: '5️⃣ Delivery Methods - "How Do They Get It?"',
+                    color: '#d1c4e9',
+                    content: `Multiple ways to deliver:
+
+• Email: Send with attachments
+• Pickup: At a location (office, counter)
+• Mail: Ship to address
+• Dynamic: Let user choose ({{deliveryMode}})`,
+                  },
+                  {
+                    title: '6️⃣ Feedback Surveys - "How Did We Do?"',
+                    color: '#c0caf9',
+                    content: `Collect feedback:
+
+surveyQuestions:
+  - Was the service completed satisfactorily?
+  - How would you rate the quality?
+  - What could we improve?`,
+                  },
+                ].map((tool, idx) => (
+                  <Accordion key={idx} defaultExpanded={idx === 0}>
+                    <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ bgcolor: tool.color }}>
+                      <Typography sx={{ fontWeight: 600, textAlign: 'left' }}>{tool.title}</Typography>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                      <Typography component="pre" sx={{ fontFamily: 'monospace', fontSize: '0.9rem', whiteSpace: 'pre-wrap', color: '#333', textAlign: 'left' }}>
+                        {tool.content}
+                      </Typography>
+                    </AccordionDetails>
+                  </Accordion>
+                ))}
+              </Stack>
+            </Box>
+
+            {/* Using Parameters & Templates */}
+            <Alert severity="info" icon={<LightbulbIcon />}>
+              <Typography variant="body2" sx={{ fontWeight: 600, mb: 1, textAlign: 'left' }}>
+                💡 Pro Tips: Using Parameters & Templates
+              </Typography>
+              <Stack spacing={1} sx={{ fontSize: '0.9rem', textAlign: 'left' }}>
+                <Box>• <strong>Parameters are portable:</strong> Define in request envelope, use everywhere with {"{{parameterName}}"} syntax</Box>
+                <Box>• <strong>Email templates:</strong> Create in "Email Templates" tab, reference by ID in delivery envelope</Box>
+                <Box>• <strong>Template variables:</strong> Use {"{{studentName}}, {{requestId}}, {{status}}"} — auto-populated from request parameters</Box>
+                <Box>• <strong>Update anytime:</strong> Edit templates without redeploying services. Next email uses new version</Box>
+              </Stack>
+            </Alert>
+          </Stack>
+        </TabPanel>
+
+        {/* Envelope Guide - Visual Cards */}
+        <TabPanel value={tabValue} index={3}>
+          <Stack spacing={3} sx={{ p: 3 }}>
+            <Box>
+              <Typography variant="h5" sx={{ fontWeight: 700, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <MenuBookIcon sx={{ color: '#1976d2' }} />
+                Understanding The 6 Envelopes
+              </Typography>
+              <Typography variant="body2" color="textSecondary">
+                Every service has 6 envelopes. Define rules for each one. Your service, your rules.
+              </Typography>
+            </Box>
 
             {[
               {
-                name: '📋 Request Envelope',
-                description: 'Captures incoming request data and validates it',
-                key: 'request',
-                uses: [
-                  'Define what parameters your service needs',
-                  'Configure initial validation rules',
-                  'Specify the source system',
+                icon: '📋',
+                name: 'Request Envelope',
+                color: '#e3f2fd',
+                borderColor: '#1976d2',
+                description: 'What information do you need from the requester?',
+                details: [
+                  'Define custom parameters (studentId, email, purpose, etc)',
+                  'Set required vs optional fields',
+                  'Parameters can be used throughout service with {{parameterName}}',
+                  'Example: 3 fields (simple) to 20+ fields (complex)',
                 ],
               },
               {
-                name: '✓ Approval Envelope',
-                description: 'Routes requests for human approval',
-                key: 'approval',
-                uses: [
-                  'Define approvers (roles and users)',
-                  'Set approval rules (all must approve or any can approve)',
-                  'Specify approval conditions',
+                icon: '✅',
+                name: 'Approval Envelope',
+                color: '#e8f5e9',
+                borderColor: '#4caf50',
+                description: 'Who approves requests and under what rules?',
+                details: [
+                  'specific_approver: One person decides',
+                  'any_one: First person to approve wins',
+                  'all_must_approve: Everyone must sign off',
+                  'complex: Head + at least one team member (checks & balances)',
                 ],
               },
               {
-                name: '💰 Payment Envelope',
-                description: 'Handles financial transactions',
-                key: 'payment',
-                uses: [
-                  'List charges/fees required',
-                  'Specify payment methods',
-                  'Set payment conditions',
+                icon: '💰',
+                name: 'Payment Envelope',
+                color: '#fff3e0',
+                borderColor: '#f57c00',
+                description: 'Is payment required? If yes, what are the costs?',
+                details: [
+                  'required: false → Free service',
+                  'required: true → List itemized charges',
+                  'Multiple charges: Processing + Printing + Delivery',
+                  'Specify payment provider (maya, stripe, etc) and currency (PHP, USD)',
                 ],
               },
               {
-                name: '⚙️ Processing Envelope',
-                description: 'Executes business logic tasks',
-                key: 'processing',
-                uses: [
-                  'List tasks to execute in order',
-                  'Define task dependencies',
-                  'Configure success/failure handlers',
+                icon: '⚙️',
+                name: 'Processing Envelope',
+                color: '#f3e5f5',
+                borderColor: '#7b1fa2',
+                description: 'What happens behind the scenes?',
+                details: [
+                  'custom_function: Built-in logic (verify_student, generate_document)',
+                  'api_call: Call external systems (registrar API, document system)',
+                  'webhook: Trigger workflows in other systems',
+                  'Tasks execute in sequence with retries & timeouts',
                 ],
               },
               {
-                name: '📬 Delivery Envelope',
-                description: 'Delivers results to users via email with templated messages',
-                key: 'delivery',
-                uses: [
-                  'Select delivery method (email is primary)',
-                  'Reference an email template using templateId (created in Email Templates tab)',
-                  'Email template variables are auto-filled from request parameters',
-                  'Template variables like {{studentName}}, {{courseCode}}, {{status}} get populated automatically',
-                  'Update templates anytime without redeploying services',
+                icon: '📬',
+                name: 'Delivery Envelope',
+                color: '#fce4ec',
+                borderColor: '#c2185b',
+                description: 'How do they get the result?',
+                details: [
+                  'Email: Primary method with templated content',
+                  'Reference email template by ID (created in "Email Templates" tab)',
+                  'Template variables like {{studentName}} auto-filled from request params',
+                  'Pickup/Mail also supported; can use {{deliveryMode}} for dynamic choice',
                 ],
               },
               {
-                name: '⭐ Feedback Envelope',
-                description: 'Collects user feedback on service',
-                key: 'feedback',
-                uses: [
-                  'Enable/disable feedback collection',
-                  'Define feedback prompts',
-                  'Configure feedback notifications',
+                icon: '⭐',
+                name: 'Feedback Envelope',
+                color: '#e0f2f1',
+                borderColor: '#00897b',
+                description: 'Collect user feedback and satisfaction',
+                details: [
+                  'Optional survey after service completion',
+                  'Ask satisfaction, quality, improvement questions',
+                  'Feedback helps you improve services',
+                  'Can be required or optional',
                 ],
               },
-            ].map((envelope) => (
-              <Paper key={envelope.key} variant="outlined" sx={{ p: 2 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-                  {envelope.name}
-                </Typography>
-                <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
-                  {envelope.description}
-                </Typography>
-                <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
-                  Common Uses:
-                </Typography>
-                <List dense>
-                  {envelope.uses.map((use, idx) => (
-                    <ListItem key={idx} disableGutters>
-                      <ListItemText primary={use} />
-                    </ListItem>
-                  ))}
-                </List>
-              </Paper>
+            ].map((envelope, idx) => (
+              <Card
+                key={idx}
+                sx={{
+                  border: `2px solid ${envelope.borderColor}`,
+                  bgcolor: envelope.color,
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    boxShadow: 3,
+                    transform: 'translateY(-4px)',
+                  },
+                }}
+              >
+                <CardContent>
+                  <Typography variant="h6" sx={{ fontWeight: 700, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <span style={{ fontSize: '1.5rem' }}>{envelope.icon}</span>
+                    {envelope.name}
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontStyle: 'italic', mb: 2, color: '#666' }}>
+                    {envelope.description}
+                  </Typography>
+                  <Divider sx={{ my: 1.5 }} />
+                  <Stack spacing={1}>
+                    {envelope.details.map((detail, didx) => (
+                      <Box key={didx} sx={{ display: 'flex', gap: 1 }}>
+                        <Typography sx={{ color: '#4caf50', fontWeight: 600 }}>✓</Typography>
+                        <Typography variant="body2">{detail}</Typography>
+                      </Box>
+                    ))}
+                  </Stack>
+                </CardContent>
+              </Card>
             ))}
+
+            <Alert severity="success" icon={<LightbulbIcon />}>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                Remember: Every service uses all 6 envelopes. You control what goes in each one!
+              </Typography>
+            </Alert>
           </Stack>
         </TabPanel>
 
-        {/* Examples Tab */}
-        <TabPanel value={tabValue} index={3}>
-          <Stack spacing={2} sx={{ p: 3 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
-              Example Service Definitions with Email Templates
-            </Typography>
-
-            <Box sx={{ backgroundColor: '#fff3e0', p: 2, borderRadius: 1, mb: 2 }}>
-              <Typography variant="caption">
-                ℹ️ <strong>Each example references an email template created in the Email Templates tab.</strong> The templateId must exist or validation will fail. Templates use {`{{variableName}}`} syntax for dynamic content.
+        {/* Examples - Complete Working Services */}
+        <TabPanel value={tabValue} index={4}>
+          <Stack spacing={3} sx={{ p: 3 }}>
+            <Box>
+              <Typography variant="h5" sx={{ fontWeight: 700, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <CodeIcon sx={{ color: '#1976d2' }} />
+                Real-World Examples
+              </Typography>
+              <Typography variant="body2" color="textSecondary">
+                Copy, modify, and deploy. Each example is production-ready.
               </Typography>
             </Box>
 
-            {/* Example 1: Course Enrollment */}
-            <Paper variant="outlined" sx={{ p: 2 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                Example 1: Course Enrollment Service
-              </Typography>
-              <Typography variant="caption" sx={{ display: 'block', color: 'textSecondary', mb: 1 }}>
-                Uses: enrollment_confirmation template with variables: {`{{studentName}}`}, {`{{courseCode}}`}, {`{{semester}}`}, {`{{registrarName}}`}
-              </Typography>
-              <Typography component="pre" sx={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.75rem', maxHeight: 300, overflow: 'auto', textAlign: 'left', margin: 0, backgroundColor: '#f5f5f5', p: 1, borderRadius: 0.5 }}>
-{`id: SERV-1-04152026
-name: Course Enrollment Service
-type: courseEnrollment
-initiator: admin_portal
-
-envelopes:
-  request:
-    required: true
-    parameters:
-      studentId: ""
-      courseCode: ""
-      semester: ""
-  approval:
-    required: true
-    approvers:
-      - id: registrar
-        role: Registrar
-  payment:
-    required: true
-    charges:
-      - item: "Tuition Fee"
-        amount: 5000.00
-        currency: PHP
-  processing:
-    required: true
-    tasks:
-      - name: validate_prerequisites
-      - name: register_student
-  delivery:
-    required: true
-    method: email
-    details:
-      subject: "Enrollment Confirmation"
-      templateId: enrollment_confirmation
-  feedback:
-    required: true`}
-              </Typography>
-            </Paper>
-
-            {/* Example 2: Request Approval Notification */}
-            <Paper variant="outlined" sx={{ p: 2 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                Example 2: Document Request Service
-              </Typography>
-              <Typography variant="caption" sx={{ display: 'block', color: 'textSecondary', mb: 1 }}>
-                Uses: request_submitted template with variables: {`{{requestId}}`}, {`{{requestType}}`}, {`{{studentName}}`}, {`{{estimatedCompletion}}`}
-              </Typography>
-              <Typography component="pre" sx={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.75rem', maxHeight: 300, overflow: 'auto', textAlign: 'left', margin: 0, backgroundColor: '#f5f5f5', p: 1, borderRadius: 0.5 }}>
-{`id: SERV-2-04152026
-name: Official Document Request
-type: documentRequest
+            {[
+              {
+                title: '📜 Transcript of Records (TOR)',
+                subtitle: 'Student requests official transcript, 2 people approve, pays PHP 700, gets document',
+                complexity: 'Advanced',
+                code: `id: SERV-3-05262026
+name: Transcript of Records
+type: transcriptOfRecords
 initiator: student_portal
 
 envelopes:
   request:
-    required: true
     parameters:
-      documentType: ""
-      purpose: ""
-      copies: ""
+      studentId: String
+      firstName: String
+      numberOfCopies: Number (1-5)
+      purpose: String
+      deliveryMode: String
+  
   approval:
-    required: false
+    approvers:
+      - id: barondimaranan@gmail.com
+        role: Head Teller
+      - id: baron@fowlstudios.com
+        role: Sub Teller 1
+    approvalRules:
+      type: complex
+      requiredApprovers:
+        - barondimaranan@gmail.com
+      atLeastOneOf:
+        - baron@fowlstudios.com
+        - barbargbf@gmail.com
+    expiryHours: 48
+  
   payment:
-    required: false
+    required: true
+    charges:
+      - item: TOR Processing
+        amount: 500
+      - item: Printing & Delivery
+        amount: 200
+  
   processing:
-    required: true
     tasks:
-      - name: verify_student_status
-      - name: retrieve_document
+      - verify_student
+      - pull_transcript
+      - generate_document
+  
   delivery:
-    required: true
-    method: email
-    details:
-      subject: "Document Request Received"
-      templateId: request_submitted
+    method: "{{deliveryMode}}"
+    email:
+      templateId: tor_confirmation
+  
   feedback:
-    required: true`}
-              </Typography>
-            </Paper>
-
-            {/* Example 3: Approval Required */}
-            <Paper variant="outlined" sx={{ p: 2 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                Example 3: Leave Request Service (with Approval)
-              </Typography>
-              <Typography variant="caption" sx={{ display: 'block', color: 'textSecondary', mb: 1 }}>
-                Uses: approval_notification template with variables: {`{{approverName}}`}, {`{{leaveType}}`}, {`{{startDate}}`}, {`{{endDate}}`}, {`{{totalDays}}`}
-              </Typography>
-              <Typography component="pre" sx={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.75rem', maxHeight: 300, overflow: 'auto', textAlign: 'left', margin: 0, backgroundColor: '#f5f5f5', p: 1, borderRadius: 0.5 }}>
-{`id: SERV-3-04152026
-name: Employee Leave Request
-type: leaveRequest
-initiator: employee_portal
+    required: true`,
+              },
+              {
+                title: '🏥 Clinic Visit Request',
+                subtitle: 'Student books appointment, medical staff approves, no payment, reminder email',
+                complexity: 'Simple',
+                code: `id: SERV-6-05262026
+name: Clinic Visit Request
+type: clinicVisitRequest
+initiator: student_portal
 
 envelopes:
   request:
-    required: true
     parameters:
-      leaveType: ""
-      startDate: ""
-      endDate: ""
-      reason: ""
+      studentId: String
+      visitDate: Date
+      reason: String
+      notes: String (optional)
+  
   approval:
-    required: true
     approvers:
-      - id: manager
-        role: Direct Manager
+      - id: clinic@mapua.edu.ph
+        role: Clinic Manager
     approvalRules:
-      type: all_must_approve
+      type: specific_approver
+    expiryHours: 24
+  
   payment:
     required: false
+  
   processing:
-    required: true
     tasks:
-      - name: calculate_leave_balance
-      - name: update_leave_record
+      - verify_student_status
+      - confirm_appointment
+  
   delivery:
-    required: true
     method: email
-    details:
-      subject: "Leave Request Approved"
-      templateId: approval_notification
+    email:
+      templateId: appointment_confirmation
+  
   feedback:
-    required: false`}
-              </Typography>
-            </Paper>
+    required: true`,
+              },
+              {
+                title: '🏨 Room Rental Service',
+                subtitle: 'Student rents room, Head + Finance both approve, itemized payment, contract delivery',
+                complexity: 'Complex',
+                code: `id: SERV-4-05262026
+name: Room Rental Service
+type: roomRental
+initiator: student_portal
 
-            <Box sx={{ backgroundColor: '#e3f2fd', p: 2, borderRadius: 1, mt: 2 }}>
-              <Typography variant="caption">
-                💡 <strong>How to Create Templates:</strong> Go to the "Email Templates" tab to create new templates. Define the HTML body with {`{{variableName}}`} placeholders—variables are auto-extracted and shown in the preview panel.
+envelopes:
+  request:
+    parameters:
+      studentId: String
+      roomType: String
+      startDate: Date
+      endDate: Date
+      numberOfOccupants: Number
+      specialRequirements: String
+      emergencyPhone: String
+  
+  approval:
+    approvers:
+      - id: housing.head@mapua.edu.ph
+        role: Housing Director
+      - id: finance.head@mapua.edu.ph
+        role: Finance Director
+    approvalRules:
+      type: all_must_approve
+    expiryHours: 72
+  
+  payment:
+    required: true
+    charges:
+      - item: Monthly Rental
+        amount: 5000
+      - item: Security Deposit
+        amount: 2000
+      - item: Damage Insurance
+        amount: 500
+  
+  processing:
+    tasks:
+      - verify_student_eligibility
+      - check_room_availability
+      - generate_contract
+      - create_occupancy_record
+  
+  delivery:
+    method: email
+    email:
+      templateId: rental_contract
+  
+  feedback:
+    required: true`,
+              },
+            ].map((example, idx) => (
+              <Card key={idx} sx={{ border: '2px solid #e0e0e0' }}>
+                <CardContent>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
+                      {example.title}
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
+                      {example.subtitle}
+                    </Typography>
+                    <Chip label={example.complexity} size="small" color={example.complexity === 'Simple' ? 'success' : 'warning'} />
+                  </Box>
+
+                  <Box sx={{ position: 'relative' }}>
+                    <Typography component="pre" sx={{
+                      fontFamily: 'monospace',
+                      fontSize: '0.85rem',
+                      overflow: 'auto',
+                      maxHeight: 400,
+                      bgcolor: '#1e1e1e',
+                      color: '#d4d4d4',
+                      p: 2,
+                      borderRadius: 1,
+                      lineHeight: 1.5,
+                      textAlign: 'left',
+                    }}>
+                      {example.code}
+                    </Typography>
+                    <Tooltip title="Copy to clipboard">
+                      <IconButton
+                        size="small"
+                        onClick={() => {
+                          navigator.clipboard.writeText(example.code);
+                          addNotification('Copied to clipboard!', 'success');
+                        }}
+                        sx={{ position: 'absolute', top: 8, right: 8, bgcolor: 'rgba(255,255,255,0.1)' }}
+                      >
+                        <ContentCopyIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                </CardContent>
+              </Card>
+            ))}
+
+            <Alert severity="info" sx={{ textAlign: 'left' }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, mb: 1, textAlign: 'left' }}>
+                📋 How to Use Examples:
+              </Typography>
+              <Stack spacing={0.5} sx={{ fontSize: '0.9rem' }}>
+                <Box sx={{ textAlign: 'left' }}>1. Copy the YAML above (click the copy button)</Box>
+                <Box sx={{ textAlign: 'left' }}>2. Paste into the Builder tab as a starting point</Box>
+                <Box sx={{ textAlign: 'left' }}>3. Modify parameters, approvers, charges for your service</Box>
+                <Box sx={{ textAlign: 'left' }}>4. Create email templates for delivery envelope templateId references</Box>
+                <Box sx={{ textAlign: 'left' }}>5. Validate & save your service</Box>
+              </Stack>
+            </Alert>
+          </Stack>
+        </TabPanel>
+
+        {/* Quick Reference - Tables & Lookup */}
+        <TabPanel value={tabValue} index={5}>
+          <Stack spacing={3} sx={{ p: 3 }}>
+            <Box>
+              <Typography variant="h5" sx={{ fontWeight: 700, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <LightbulbIcon sx={{ color: '#ffc107' }} />
+                Quick Reference Tables
+              </Typography>
+              <Typography variant="body2" color="textSecondary">
+                Fast lookup tables for building services.
               </Typography>
             </Box>
 
-            <Box sx={{ backgroundColor: '#f3e5f5', p: 2, borderRadius: 1 }}>
-              <Typography variant="caption">
-                ✅ <strong>Validation:</strong> When you save a service, the templateId in the delivery envelope is automatically validated against existing email templates. If the template doesn't exist, you'll get an error—click Email Templates tab to create it.
+            {/* Approval Types Table */}
+            <Card>
+              <CardContent>
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                  Approval Types
+                </Typography>
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead sx={{ bgcolor: '#f5f5f5' }}>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>When To Use</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Setup</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      <TableRow>
+                        <TableCell><code>specific_approver</code></TableCell>
+                        <TableCell>Single decision-maker</TableCell>
+                        <TableCell>One email in specificApprover</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell><code>any_one</code></TableCell>
+                        <TableCell>Quick approval (first wins)</TableCell>
+                        <TableCell>List multiple approvers</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell><code>all_must_approve</code></TableCell>
+                        <TableCell>Consensus (everyone signs)</TableCell>
+                        <TableCell>List all approvers</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell><code>complex</code></TableCell>
+                        <TableCell>Head + team (checks & balance)</TableCell>
+                        <TableCell>requiredApprovers + atLeastOneOf</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </CardContent>
+            </Card>
+
+            {/* Processing Task Types */}
+            <Card>
+              <CardContent>
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                  Processing Task Types
+                </Typography>
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead sx={{ bgcolor: '#f5f5f5' }}>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Purpose</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Examples</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      <TableRow>
+                        <TableCell><code>custom_function</code></TableCell>
+                        <TableCell>Built-in business logic</TableCell>
+                        <TableCell>verify_student, generate_document, pull_transcript</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell><code>api_call</code></TableCell>
+                        <TableCell>Call external systems</TableCell>
+                        <TableCell>Registrar API, document system, email service</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell><code>webhook</code></TableCell>
+                        <TableCell>Trigger workflows</TableCell>
+                        <TableCell>Alert teams, log events, sync to other systems</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </CardContent>
+            </Card>
+
+            {/* Common Parameter Types */}
+            <Card>
+              <CardContent>
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                  Common Parameter Types
+                </Typography>
+                <Stack spacing={2}>
+                  {[
+                    { type: 'String', example: 'studentId: ""' },
+                    { type: 'Number', example: 'numberOfCopies: 0 (with 1-5 range)' },
+                    { type: 'Date', example: 'startDate: ""' },
+                    { type: 'Boolean', example: 'isUrgent: false' },
+                    { type: 'Dropdown', example: 'purpose: "(Scholarship, Employment, Transfer)"' },
+                  ].map((item, idx) => (
+                    <Box key={idx} sx={{ display: 'flex', gap: 2 }}>
+                      <Typography sx={{ fontFamily: 'monospace', fontWeight: 600, minWidth: 100 }}>
+                        {item.type}
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                        {item.example}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              </CardContent>
+            </Card>
+
+            {/* Symbols Reference */}
+            <Alert severity="info" icon={<LightbulbIcon />}>
+              <Typography variant="body2" sx={{ fontWeight: 600, mb: 1, textAlign: 'left' }}>
+                📌 Symbols Used Throughout:
               </Typography>
-            </Box>
+              <Stack spacing={0.5} sx={{ fontSize: '0.9rem', textAlign: 'left' }}>
+                <Box>{"{{parameterName}}"} → Parameter reference (replaced with actual value)</Box>
+                <Box># → Comment (ignored by parser)</Box>
+                <Box>| → OR operator (choose one: specific_approver|any_one|all_must_approve)</Box>
+              </Stack>
+            </Alert>
           </Stack>
         </TabPanel>
 
         {/* Email Templates Tab */}
-        <TabPanel value={tabValue} index={4}>
+        <TabPanel value={tabValue} index={6}>
           <Box sx={{ p: 3 }}>
             <EmailTemplateManager />
           </Box>
         </TabPanel>
       </Paper>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onClose={handleCancelDelete} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1, color: '#000' }}>
+          <DeleteIcon color="error" />
+          Delete Service
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 2 }}>
+            <Typography>
+              Are you sure you want to delete this service? This action cannot be undone.
+            </Typography>
+            {serviceToDelete && (
+              <Paper variant="outlined" sx={{ p: 2, bgcolor: '#f5f5f5' }}>
+                <Stack spacing={1}>
+                  <Box>
+                    <Typography variant="caption" color="textSecondary">
+                      Service Name
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                      {serviceToDelete.name}
+                    </Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" color="textSecondary">
+                      Service ID
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                      {serviceToDelete.id}
+                    </Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" color="textSecondary">
+                      Type
+                    </Typography>
+                    <Typography variant="body2">
+                      <Chip label={serviceToDelete.type} size="small" />
+                    </Typography>
+                  </Box>
+                </Stack>
+              </Paper>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelDelete} disabled={deleting}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirmDelete}
+            color="error"
+            variant="contained"
+            disabled={deleting}
+            startIcon={deleting ? <CircularProgress size={20} /> : <DeleteIcon />}
+          >
+            {deleting ? 'Deleting...' : 'Delete Service'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

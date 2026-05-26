@@ -50,9 +50,12 @@ export interface ApprovalEnvelope {
   required: boolean;
   approvers: Approver[];
   approvalRules: {
-    type: 'all_must_approve' | 'any_one' | 'majority';
+    type: 'all_must_approve' | 'any_one' | 'specific_approver' | 'complex';
+    requiredApprovers?: string[];
+    atLeastOneOf?: string[];
+    specificApproverId?: string;
   };
-}
+};
 
 export interface Charge {
   item: string;
@@ -155,6 +158,89 @@ export interface ApprovalTokenResponse {
   expired: boolean;
   expiresAt: string;
   createdAt: string;
+}
+
+export interface RequestDetailResponse {
+  requestId: string;
+  type: string;
+  status: 'queued' | 'processing' | 'pending_external' | 'completed' | 'failed' | 'cancelled' | 'pending_approval';
+  approverId: string;
+  used?: boolean;
+  expiresAt: string;
+  parameters: {
+    studentId?: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    program?: string;
+    numberOfCopies?: number;
+    purpose?: string;
+    deliveryAddress?: string;
+    [key: string]: any;
+  };
+  approvalStatus?: 'pending_external' | 'approved' | 'denied' | 'cancelled';
+  approvers?: Array<{
+    id: string;
+    status: 'approved' | 'pending' | 'denied';
+  }>;
+  approvalEnvelope?: ApprovalEnvelope;
+}
+
+// Payment-related types
+export interface PaymentCharge {
+  item: string;
+  amount: number;
+  currency: string;
+}
+
+export interface PaymentEnvelopeDetail {
+  required: boolean;
+  charges: PaymentCharge[];
+  paymentMethod: string;
+  status?: string;
+}
+
+export interface FullServiceRequest extends ServiceRequest {
+  id: string;
+  envelopes: EnvelopeCollection;
+}
+
+export interface PaymentCompleteRequest {
+  transactionId: string;
+  amount: number;
+  method: string;
+  reference: string;
+  metadata: {
+    paymentTimestamp: string;
+    mayaCheckoutId?: string;
+    browserInfo?: string;
+  };
+}
+
+export interface PaymentCompleteResponse {
+  requestId: string;
+  status: string;
+  transactionId: string;
+  nextStatus: string;
+  message: string;
+}
+
+export interface PaymentFailureRequest {
+  reason: string;
+  errorCode: string;
+  metadata: {
+    mayaErrorCode?: string;
+    attemptNumber: number;
+    failureTimestamp: string;
+  };
+}
+
+export interface PaymentFailureResponse {
+  requestId: string;
+  status: string;
+  reason: string;
+  nextStatus: string;
+  message: string;
 }
 
 // UI State
