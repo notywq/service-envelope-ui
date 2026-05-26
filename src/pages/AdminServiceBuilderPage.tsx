@@ -624,8 +624,10 @@ envelopes:
   
   processing:
     tasks:
-      - custom_function: task_name
-      - api_call: { method: GET, url: https://... }
+      - name: task_name
+        type: api_call
+        method: GET
+        url: https://...
   
   delivery:
     method: email | physical_mail | pickup
@@ -738,13 +740,17 @@ envelopes:
   processing:
     tasks:
       - name: verify_student
-        type: custom_function
+        type: api_call
+        method: GET
+        url: https://api.registrar.local/verify
       - name: pull_transcript
         type: api_call
         method: GET
         url: https://api.registrar.local/transcript
       - name: generate_pdf
-        type: custom_function
+        type: api_call
+        method: POST
+        url: https://api.generator.local/pdf
   
   delivery:
     method: email
@@ -798,7 +804,9 @@ envelopes:
   processing:
     tasks:
       - name: verify_student_active
-        type: custom_function
+        type: api_call
+        method: POST
+        url: https://api.registrar.local/verify-active
       - name: check_clinic_availability
         type: api_call
         method: POST
@@ -871,13 +879,17 @@ envelopes:
   processing:
     tasks:
       - name: verify_eligibility
-        type: custom_function
+        type: api_call
+        method: POST
+        url: https://api.housing.local/verify-eligibility
       - name: check_availability
         type: api_call
         method: GET
         url: https://api.housing.local/availability
       - name: generate_contract
-        type: custom_function
+        type: api_call
+        method: POST
+        url: https://api.housing.local/generate-contract
       - name: record_occupancy
         type: api_call
         method: POST
@@ -943,7 +955,9 @@ envelopes:
         method: GET
         url: https://api.registrar.local/enrollment
       - name: update_transcript
-        type: custom_function
+        type: api_call
+        method: POST
+        url: https://api.registrar.local/update-transcript
   
   delivery:
     method: email

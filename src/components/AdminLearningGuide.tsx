@@ -235,13 +235,13 @@ export const AdminLearningGuide: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
 
   return (
-    <Box sx={{ width: '100%' }}>
+    <Box sx={{ width: '100%', textAlign: 'left' }}>
       {/* Header */}
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h4" gutterBottom>
+      <Box sx={{ mb: 3, pl: 2 }}>
+        <Typography variant="h4" gutterBottom sx={{ textAlign: 'left' }}>
           Service Definition Learning Guide
         </Typography>
-        <Typography color="textSecondary">
+        <Typography color="textSecondary" sx={{ textAlign: 'left' }}>
           Learn how to create and structure service definitions for the Service Envelope system
         </Typography>
       </Box>
@@ -267,17 +267,17 @@ export const AdminLearningGuide: React.FC = () => {
           <Stack spacing={2}>
             {ParameterTypesData.map((param) => (
               <Card key={param.type}>
-                  <CardContent>
-                    <Typography variant="h6" gutterBottom>
+                  <CardContent sx={{ textAlign: 'left' }}>
+                    <Typography variant="h6" gutterBottom sx={{ textAlign: 'left' }}>
                       {param.type}
                     </Typography>
-                    <Typography color="textSecondary" variant="body2" gutterBottom>
+                    <Typography color="textSecondary" variant="body2" gutterBottom sx={{ textAlign: 'left' }}>
                       {param.description}
                     </Typography>
-                    <Typography variant="caption" sx={{ display: 'block', mt: 1, mb: 2 }}>
+                    <Typography variant="caption" sx={{ display: 'block', mt: 1, mb: 2, textAlign: 'left' }}>
                       <strong>Validation:</strong> {param.validation}
                     </Typography>
-                    <Paper sx={{ p: 2, backgroundColor: '#f5f5f5' }}>
+                    <Paper sx={{ p: 2, backgroundColor: '#f5f5f5', textAlign: 'left' }}>
                       <code style={{ fontSize: 12, whiteSpace: 'pre-wrap' }}>{param.example}</code>
                     </Paper>
                   </CardContent>
@@ -296,35 +296,35 @@ export const AdminLearningGuide: React.FC = () => {
 
           {EnvelopeGuideData.map((envelope) => (
             <Card key={envelope.title}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
+              <CardContent sx={{ textAlign: 'left' }}>
+                <Typography variant="h6" gutterBottom sx={{ textAlign: 'left' }}>
                   {envelope.icon} {envelope.title}
                 </Typography>
-                <Typography color="textSecondary" variant="body2" gutterBottom>
+                <Typography color="textSecondary" variant="body2" gutterBottom sx={{ textAlign: 'left' }}>
                   {envelope.description}
                 </Typography>
 
-                <Box sx={{ mt: 1, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-                  <Box>
-                    <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                <Box sx={{ mt: 1, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2, textAlign: 'left' }}>
+                  <Box sx={{ textAlign: 'left' }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, textAlign: 'left' }}>
                       Purpose
                     </Typography>
-                    <Typography variant="body2">{envelope.purpose}</Typography>
+                    <Typography variant="body2" sx={{ textAlign: 'left' }}>{envelope.purpose}</Typography>
                   </Box>
-                  <Box>
-                    <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                  <Box sx={{ textAlign: 'left' }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, textAlign: 'left' }}>
                       Required Fields
                     </Typography>
-                    <Typography variant="body2">{envelope.required}</Typography>
+                    <Typography variant="body2" sx={{ textAlign: 'left' }}>{envelope.required}</Typography>
                   </Box>
-                  <Box>
-                    <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                  <Box sx={{ textAlign: 'left' }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, textAlign: 'left' }}>
                       Optional Fields
                     </Typography>
-                    <Typography variant="body2">{envelope.optional}</Typography>
+                    <Typography variant="body2" sx={{ textAlign: 'left' }}>{envelope.optional}</Typography>
                   </Box>
-                  <Box>
-                    <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                  <Box sx={{ textAlign: 'left' }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, textAlign: 'left' }}>
                       Email Templates
                     </Typography>
                     {envelope.emailTemplates.map((template) => (
@@ -359,30 +359,30 @@ export const AdminLearningGuide: React.FC = () => {
               </AccordionSummary>
               <AccordionDetails>
                 <Stack spacing={2}>
-                  <Box>
-                    <Typography variant="subtitle2" color="error" gutterBottom>
+                  <Box sx={{ textAlign: 'left' }}>
+                    <Typography variant="subtitle2" color="error" gutterBottom sx={{ textAlign: 'left' }}>
                       ❌ Wrong:
                     </Typography>
-                    <Paper sx={{ p: 2, backgroundColor: '#ffebee' }}>
+                    <Paper sx={{ p: 2, backgroundColor: '#ffebee', textAlign: 'left' }}>
                       <code style={{ fontSize: 12, whiteSpace: 'pre-wrap', display: 'block' }}>
                         {mistake.wrong}
                       </code>
                     </Paper>
                   </Box>
 
-                  <Box>
-                    <Typography variant="subtitle2" color="success.main" gutterBottom>
+                  <Box sx={{ textAlign: 'left' }}>
+                    <Typography variant="subtitle2" color="success.main" gutterBottom sx={{ textAlign: 'left' }}>
                       ✅ Correct:
                     </Typography>
-                    <Paper sx={{ p: 2, backgroundColor: '#e8f5e9' }}>
+                    <Paper sx={{ p: 2, backgroundColor: '#e8f5e9', textAlign: 'left' }}>
                       <code style={{ fontSize: 12, whiteSpace: 'pre-wrap', display: 'block' }}>
                         {mistake.right}
                       </code>
                     </Paper>
                   </Box>
 
-                  <Box>
-                    <Typography variant="caption" color="textSecondary">
+                  <Box sx={{ textAlign: 'left' }}>
+                    <Typography variant="caption" color="textSecondary" sx={{ textAlign: 'left' }}>
                       <strong>Impact:</strong> {mistake.impact}
                     </Typography>
                   </Box>
@@ -397,63 +397,64 @@ export const AdminLearningGuide: React.FC = () => {
       <TabPanel value={tabValue} index={3}>
         <Stack spacing={3}>
           <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
+            <CardContent sx={{ textAlign: 'left' }}>
+              <Typography variant="h6" gutterBottom sx={{ textAlign: 'left' }}>
                 Service Definition Structure
               </Typography>
-              <Paper sx={{ p: 2, backgroundColor: '#f5f5f5', overflow: 'auto' }}>
+              <Paper sx={{ p: 2, backgroundColor: '#f5f5f5', overflow: 'auto', textAlign: 'left' }}>
                 <code style={{ fontSize: 11, whiteSpace: 'pre', display: 'block' }}>
 {`serviceId: "SERVICE-001"
 type: "transcript-of-records"
 name: "Transcript of Records"
 description: "Official transcript request"
 
-request:
-  parameters:
-    firstName:
-      type: String
-      required: true
+envelopes:
+  request:
+    parameters:
+      firstName:
+        type: String
+        required: true
 
-approval:
-  requiresApproval: true
-  approvalRules:
-    type: all_must_approve
-  requiredApprovers:
-    - approver@example.com
+  approval:
+    requiresApproval: true
+    approvalRules:
+      type: all_must_approve
+    requiredApprovers:
+      - approver@example.com
 
-payment:
-  required: true
-  charges:
-    - item: "Transcript Copy"
-      amount: 50000
-      currency: PHP
+  payment:
+    required: true
+    charges:
+      - item: "Transcript Copy"
+        amount: 50000
+        currency: PHP
 
-processing:
-  tasks:
-    - type: api_call
-      method: POST
-      url: "https://api.example.com/..."
+  processing:
+    tasks:
+      - type: api_call
+        method: POST
+        url: "https://api.example.com/..."
 
-delivery:
-  methods:
-    - type: email
-      recipient: "{{email}}"
+  delivery:
+    methods:
+      - type: email
+        recipient: "{{email}}"
 
-feedback:
-  required: true
-  expiryDays: 30`}
+  feedback:
+    required: true
+    expiryDays: 30`}
                 </code>
               </Paper>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
+            <CardContent sx={{ textAlign: 'left' }}>
+              <Typography variant="h6" gutterBottom sx={{ textAlign: 'left' }}>
                 Email Template Naming Convention
               </Typography>
-              <Paper sx={{ p: 2, backgroundColor: '#f5f5f5' }}>
-                <Typography variant="body2" component="div" sx={{ fontFamily: 'monospace', whiteSpace: 'pre' }}>
+              <Paper sx={{ p: 2, backgroundColor: '#f5f5f5', textAlign: 'left' }}>
+                <Typography variant="body2" component="div" sx={{ fontFamily: 'monospace', whiteSpace: 'pre', textAlign: 'left' }}>
 {`SERV-{serviceNumber}-{envelopeType}-{phase}
 
 Examples:
@@ -471,8 +472,8 @@ Examples:
           </Card>
 
           <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
+            <CardContent sx={{ textAlign: 'left' }}>
+              <Typography variant="h6" gutterBottom sx={{ textAlign: 'left' }}>
                 Template Variable Categories
               </Typography>
               <List>

@@ -306,7 +306,7 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
 
       {/* Edit/Create Template Dialog */}
       <Dialog open={showDialog} onClose={() => setShowDialog(false)} maxWidth="lg" fullWidth>
-        <DialogTitle>
+        <DialogTitle sx={{ fontWeight: 600, color: 'text.primary' }}>
           {editingTemplate?.isNew ? 'Create New Template' : 'Edit Template'}
         </DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
@@ -319,6 +319,7 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
                 value={editingTemplate.name}
                 onChange={(e) => setEditingTemplate({ ...editingTemplate, name: e.target.value })}
                 placeholder="e.g., Approval Start Email"
+                slotProps={{ inputLabel: { sx: { color: 'text.primary', fontWeight: 500 } } }}
               />
 
               <TextField
@@ -327,6 +328,7 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
                 value={editingTemplate.subject}
                 onChange={(e) => setEditingTemplate({ ...editingTemplate, subject: e.target.value })}
                 placeholder="e.g., {{requestId}} - Approval Required"
+                slotProps={{ inputLabel: { sx: { color: 'text.primary', fontWeight: 500 } } }}
               />
 
               <TextField
@@ -337,13 +339,14 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
                 value={editingTemplate.description || ''}
                 onChange={(e) => setEditingTemplate({ ...editingTemplate, description: e.target.value })}
                 placeholder="Brief description of when this template is used"
+                slotProps={{ inputLabel: { sx: { color: 'text.primary', fontWeight: 500 } } }}
               />
 
               {/* Envelope & Phase Selection */}
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
                 <Box>
                   <FormControl fullWidth>
-                    <FormLabel>Envelope Type</FormLabel>
+                    <FormLabel sx={{ color: 'text.primary', mb: 1, fontWeight: 500 }}>Envelope Type</FormLabel>
                     <RadioGroup
                       value={editingTemplate.envelopeType || 'request'}
                       onChange={(e) => setEditingTemplate({ ...editingTemplate, envelopeType: e.target.value as any })}
@@ -359,7 +362,7 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
                 </Box>
                 <Box>
                   <FormControl fullWidth>
-                    <FormLabel>Phase</FormLabel>
+                    <FormLabel sx={{ color: 'text.primary', mb: 1, fontWeight: 500 }}>Phase</FormLabel>
                     <RadioGroup
                       value={editingTemplate.phase || 'start'}
                       onChange={(e) => setEditingTemplate({ ...editingTemplate, phase: e.target.value as any })}
