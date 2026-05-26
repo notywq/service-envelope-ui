@@ -195,6 +195,7 @@ export const AdminServiceBuilderPage: React.FC = () => {
       setYamlContent(service.yaml);
       validateAndParse(service.yaml);
       setIsEditingExisting(true);
+      setTabValue(0);
     }
   };
 
@@ -251,65 +252,47 @@ export const AdminServiceBuilderPage: React.FC = () => {
     validateAndParse(template);
   };
 
-  const basicTemplate = `# Service Definition Template
-# Service metadata
-id: SERV-X-04152026
-name: Service Name
-description: Brief description of what this service does
-type: service-type-identifier
-initiator: admin_portal
+  const basicTemplate = `serviceId: SERV-001
+type: service-name
+name: My Service
+description: Brief service description
 
-# All 6 envelopes are required
 envelopes:
   request:
-    required: true
     parameters:
-      # Define custom parameters needed for this service
-      # Use key-value pairs (not arrays!)
-      studentId: ""
-      courseCode: ""
-      startDate: ""
+      firstName:
+        type: String
+        required: true
+        minLength: 2
+        maxLength: 100
   
   approval:
-    required: true
-    approvers:
-      - id: registrar
-        role: Registrar
-        status: pending
-    approvalRules:
-      type: all_must_approve
-
+    type: specific_approver
+    specificApprover: approver@example.com
+    expiryHours: 48
+  
   payment:
     required: true
     charges:
-      - item: "Service Fee"
-        amount: 500.00
+      - item: Processing Fee
+        amount: 1000
         currency: PHP
-    paymentMethod: credit_card
-
+  
   processing:
-    required: true
     tasks:
-      - name: validate_request
-        description: Validate incoming request
-      - name: process_business_logic
-        description: Execute business logic
-      - name: update_database
-        description: Update system records
-
+      - name: verify_request
+        type: api_call
+        method: POST
+        url: https://api.example.com/verify
+  
   delivery:
-    required: true
     method: email
-    details:
-      # Reference an email template created in the Email Templates tab
-      subject: "Request Status Update"
-      templateId: request-notification  # Must exist in Email Templates tab!
-      # Variables in the template will be auto-filled with request data
-      # e.g., {{studentName}}, {{requestId}}, {{status}}, etc.
-
+    email:
+      templateId: SERV-001-delivery-start
+  
   feedback:
     required: true
-    autoCloseOnExpiry: "7 days"`;
+    expiryDays: 30`;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -361,7 +344,7 @@ envelopes:
                     </Select>
                   </FormControl>
                   {isEditingExisting && (
-                    <Button variant="outlined" onClick={handleCreateNew} size="small">
+                    <Button variant="contained" color="primary" onClick={handleCreateNew} size="small" sx={{ color: 'white' }}>
                       Create New Service
                     </Button>
                   )}
@@ -409,10 +392,22 @@ envelopes:
                 sx={{
                   fontFamily: 'Courier New, Courier, monospace',
                   fontSize: '0.85rem',
-                  backgroundColor: '#f5f5f5',
+                  backgroundColor: '#1e1e1e',
+                  color: '#ffffff',
                   '& .MuiInputBase-input': {
                     textAlign: 'left',
                     whiteSpace: 'pre',
+                    color: '#ffffff',
+                    backgroundColor: '#1e1e1e',
+                  },
+                  '& .MuiOutlinedInput-notchedOutline': {
+                    borderColor: '#444',
+                  },
+                  '&:hover .MuiOutlinedInput-notchedOutline': {
+                    borderColor: '#666',
+                  },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    borderColor: '#1976d2',
                   },
                 }}
               />
@@ -435,12 +430,12 @@ envelopes:
                     ✓ YAML is valid and ready to save
                   </Alert>
                 ) : (
-                  <Alert icon={<ErrorIcon />} severity="error">
-                    <Stack spacing={1}>
-                      <Typography variant="subtitle2">Validation Errors:</Typography>
-                      <Stack component="ul" spacing={0.5}>
+                  <Alert icon={<ErrorIcon />} severity="error" sx={{ textAlign: 'left' }}>
+                    <Stack spacing={1} sx={{ textAlign: 'left' }}>
+                      <Typography variant="subtitle2" sx={{ textAlign: 'left' }}>Validation Errors:</Typography>
+                      <Stack component="ul" spacing={0.5} sx={{ textAlign: 'left', pl: 2 }}>
                         {validationErrors.map((error, idx) => (
-                          <Typography component="li" key={idx} variant="body2">
+                          <Typography component="li" key={idx} variant="body2" sx={{ textAlign: 'left' }}>
                             {error}
                           </Typography>
                         ))}
