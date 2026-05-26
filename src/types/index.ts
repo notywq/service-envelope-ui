@@ -33,7 +33,7 @@ export interface RequestEnvelope {
   sourceSystem: string;
   validationStatus: string;
   validationErrors: string[];
-  parameters: Record<string, any>;
+  parameters: Record<string, string | number | boolean | Date | null>;
 }
 
 export interface Approver {
@@ -89,7 +89,7 @@ export interface DeliveryEnvelope {
   timestamp: string;
   required: boolean;
   method: string;
-  details: Record<string, any>;
+  details: Record<string, string | number | boolean | Date | null>;
   deliveryAttempts: number;
 }
 
@@ -176,7 +176,7 @@ export interface RequestDetailResponse {
     numberOfCopies?: number;
     purpose?: string;
     deliveryAddress?: string;
-    [key: string]: any;
+    [key: string]: string | number | boolean | Date | null | undefined;
   };
   approvalStatus?: 'pending_external' | 'approved' | 'denied' | 'cancelled';
   approvers?: Array<{

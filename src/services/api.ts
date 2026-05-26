@@ -84,7 +84,7 @@ class ApiClient {
 
   async submitServiceRequest(
     serviceId: string,
-    parameters: Record<string, any>
+    parameters: Record<string, string | number | boolean | Date | null>
   ): Promise<{ id: string; status: string }> {
     const response = await this.client.post(`/api/services/${serviceId}/submit`, {
       parameters,

@@ -29,11 +29,24 @@ import {
   VerifiedUser as VerifiedUserIcon,
   Info as InfoIcon,
 } from '@mui/icons-material';
+import axios from 'axios';
 import { api } from '../services/api';
 import { useNotification } from '../hooks/useNotification';
 import type { ApprovalTokenResponse, RequestDetailResponse } from '../types';
 
 export const ApprovalPage: React.FC = () => {
+  // Helper to extract error message from axios or other errors
+  const getErrorMessage = (err: unknown, defaultMessage: string): string => {
+    if (axios.isAxiosError(err)) {
+      const data = err.response?.data as Record<string, unknown> | undefined;
+      return (data?.error as string) || err.message || defaultMessage;
+    }
+    if (err instanceof Error) {
+      return err.message;
+    }
+    return defaultMessage;
+  };
+
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
   const { addNotification } = useNotification();
@@ -63,7 +76,7 @@ export const ApprovalPage: React.FC = () => {
 
   // Helper function to get approval rule display info
   const getApprovalRuleInfo = (ruleType: string) => {
-    const rules: Record<string, { icon: React.ReactNode; label: string; description: string; color: any }> = {
+    const rules: Record<string, { icon: React.ReactNode; label: string; description: string; color: 'info' | 'success' | 'warning' | 'error' }> = {
       all_must_approve: {
         icon: <CheckBoxIcon />,
         label: 'All Must Approve',
@@ -86,7 +99,7 @@ export const ApprovalPage: React.FC = () => {
         icon: <CheckBoxIcon />,
         label: 'Complex Rule',
         description: 'All required approvers must approve AND at least one optional approver',
-        color: 'primary',
+        color: 'error',
       },
     };
     return rules[ruleType] || rules.all_must_approve;
@@ -124,8 +137,8 @@ export const ApprovalPage: React.FC = () => {
         } else if (tokenData.expired) {
           setError('This approval link has expired');
         }
-      } catch (err: any) {
-        setError(err.response?.data?.error || 'Failed to load approval request');
+      } catch (err: unknown) {
+        setError(getErrorMessage(err, 'Failed to load approval request'));
       } finally {
         setLoading(false);
       }
@@ -165,8 +178,8 @@ export const ApprovalPage: React.FC = () => {
       } else {
         setCompletionMessage('Your approval has been recorded. The system is waiting for other approvers.');
       }
-    } catch (err: any) {
-      addNotification(err.response?.data?.error || 'Failed to approve request', 'error');
+    } catch (err: unknown) {
+      addNotification(getErrorMessage(err, 'Failed to approve request'), 'error');
       setSubmitLoading(false);
     }
   };
@@ -184,8 +197,8 @@ export const ApprovalPage: React.FC = () => {
       setCompleted(true);
       setCompletionType('denied');
       setCompletionMessage('The request has been denied. The requestor will be notified with your feedback.');
-    } catch (err: any) {
-      addNotification(err.response?.data?.error || 'Failed to deny request', 'error');
+    } catch (err: unknown) {
+      addNotification(getErrorMessage(err, 'Failed to deny request'), 'error');
       setSubmitLoading(false);
     }
   };
