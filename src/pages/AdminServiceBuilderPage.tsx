@@ -267,9 +267,11 @@ envelopes:
         maxLength: 100
   
   approval:
-    type: specific_approver
-    specificApprover: approver@example.com
-    expiryHours: 48
+    approvalRules:
+      type: specific_approver
+      specificApprover: approver@example.com
+    emailTemplateStartEnvelope: SERV-001-approval-start
+    emailTemplateEndEnvelope: SERV-001-approval-end
   
   payment:
     required: true
@@ -395,6 +397,7 @@ envelopes:
                   backgroundColor: '#1e1e1e',
                   color: '#ffffff',
                   '& .MuiInputBase-input': {
+                    fontFamily: 'Courier New, Courier, monospace',
                     textAlign: 'left',
                     whiteSpace: 'pre',
                     color: '#ffffff',
@@ -457,14 +460,14 @@ envelopes:
                   sx={{
                     p: 2,
                     backgroundColor: '#fafafa',
-                    fontFamily: 'monospace',
+                    fontFamily: 'Courier New, Courier, monospace',
                     fontSize: '0.85rem',
                     maxHeight: 300,
                     overflow: 'auto',
                     textAlign: 'left',
                   }}
                 >
-                  <pre style={{ margin: 0, textAlign: 'left' }}>{JSON.stringify(parsedYaml, null, 2)}</pre>
+                  <pre style={{ margin: 0, textAlign: 'left', fontFamily: 'Courier New, Courier, monospace' }}>{JSON.stringify(parsedYaml, null, 2)}</pre>
                 </Paper>
               </Box>
             )}
@@ -524,7 +527,7 @@ envelopes:
                         <TableCell>
                           <Chip label={service.type} size="small" variant="outlined" sx={{ fontWeight: 500 }} />
                         </TableCell>
-                        <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.85rem', color: '#333', fontWeight: 500 }}>
+                        <TableCell sx={{ fontFamily: 'Courier New, Courier, monospace', fontSize: '0.85rem', color: '#333', fontWeight: 500 }}>
                           {service.id}
                         </TableCell>
                         <TableCell align="right">
@@ -584,7 +587,7 @@ envelopes:
                   Service Definition Template
                 </Typography>
                 <Typography component="pre" sx={{ 
-                  fontFamily: 'monospace', 
+                  fontFamily: 'Courier New, Courier, monospace', 
                   fontSize: '0.9rem', 
                   overflow: 'auto',
                   bgcolor: '#1e1e1e',
@@ -981,7 +984,7 @@ envelopes:
 
                   <Box sx={{ position: 'relative' }}>
                     <Typography component="pre" sx={{
-                      fontFamily: 'monospace',
+                      fontFamily: 'Courier New, Courier, monospace',
                       fontSize: '0.85rem',
                       overflow: 'auto',
                       maxHeight: 400,
@@ -1071,7 +1074,7 @@ envelopes:
                     <Typography variant="caption" color="textSecondary">
                       Service ID
                     </Typography>
-                    <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                    <Typography variant="body2" sx={{ fontFamily: 'Courier New, Courier, monospace', fontSize: '0.85rem' }}>
                       {serviceToDelete.id}
                     </Typography>
                   </Box>
