@@ -1,7 +1,8 @@
 {
   "name": "service-envelope-dashboard",
   "private": true,
-  "version": "0.0.0",
+  "version": "2.0.0",
+  "description": "Service Envelope Dashboard v2 - Complex service workflow management system",
   "type": "module",
   "scripts": {
     "dev": "vite",

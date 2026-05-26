@@ -29,9 +29,12 @@ import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { RequestDetailPage } from './pages/RequestDetailPage';
 import { ServiceBuilderPage } from './pages/ServiceBuilderPage';
-import { ApprovalPage } from './pages/ApprovalPage';
 import { PaymentPage } from './pages/PaymentPage';
 import { AdminPage } from './pages/AdminPage';
+import { FeedbackPage } from './pages/FeedbackPage';
+import { ApprovalDecisionPage } from './pages/ApprovalDecisionPage';
+import { DeliveryTrackingPage } from './pages/DeliveryTrackingPage';
+import { EnhancedServiceRequestPage } from './pages/EnhancedServiceRequestPage';
 import './App.css';
 
 // Protected Route Component
@@ -200,6 +203,15 @@ function AppInner() {
             />
 
             <Route
+              path="/requests/new"
+              element={
+                <ProtectedRoute>
+                  <EnhancedServiceRequestPage />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
               path="/services"
               element={
                 <ProtectedRoute>
@@ -227,7 +239,14 @@ function AppInner() {
           <Container maxWidth="lg">
             <Routes>
               {/* Public approval page - no layout, no authentication required */}
-              <Route path="/approvals/:token" element={<ApprovalPage />} />
+              <Route path="/approvals/:token" element={<ApprovalDecisionPage />} />
+              
+              {/* Public feedback page - no layout, no authentication required */}
+              <Route path="/feedback/:token" element={<FeedbackPage />} />
+              
+              {/* Public delivery tracking page - no layout, no authentication required */}
+              <Route path="/delivery/:requestId/tracking" element={<DeliveryTrackingPage />} />
+              
               {/* Public payment page - no layout, no authentication required */}
               <Route path="/payment" element={<PaymentPage />} />
               <Route path="*" element={<Navigate to="/login" />} />

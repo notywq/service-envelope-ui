@@ -172,7 +172,7 @@ class ApiClient {
     name: string;
     yaml: string;
     type: string;
-    initiator: string;
+    serviceId: string;
   }) {
     const response = await this.client.post('/api/admin/services', data);
     return response.data;
@@ -184,7 +184,7 @@ class ApiClient {
       name: string;
       yaml: string;
       type: string;
-      initiator: string;
+      serviceId: string;
     }
   ) {
     const response = await this.client.put(`/api/admin/services/${serviceId}`, data);
@@ -264,6 +264,59 @@ class ApiClient {
   ): Promise<PaymentFailureResponse> {
     const response = await this.client.post<PaymentFailureResponse>(
       `/api/payments/${requestId}/failed`,
+      data
+    );
+    return response.data;
+  }
+
+  // ========== FEEDBACK ENDPOINTS (TOKEN-BASED, PUBLIC) ==========
+
+  async getFeedbackByToken(token: string) {
+    const response = await this.client.get(`/api/feedback/${token}`);
+    return response.data;
+  }
+
+  async submitFeedback(data: {
+    requestId: string;
+    token: string;
+    answers: Record<string, string | number | string[]>;
+    comments?: string;
+  }) {
+    const response = await this.client.post(`/api/feedback/submit`, data);
+    return response.data;
+  }
+
+  // ========== APPROVAL ENDPOINTS (TOKEN-BASED, PUBLIC) ==========
+
+  async getApprovalByToken(approvalToken: string) {
+    const response = await this.client.get(`/api/approvals/${approvalToken}`);
+    return response.data;
+  }
+
+  async submitApproval(data: {
+    requestId: string;
+    approvalToken: string;
+    approved: boolean;
+    justification?: string;
+    denialReason?: string;
+  }) {
+    const response = await this.client.post(`/api/approvals/submit`, data);
+    return response.data;
+  }
+
+  // ========== DELIVERY ENDPOINTS ==========
+
+  async getDeliveryTracking(requestId: string) {
+    const response = await this.client.get(`/api/delivery/${requestId}/tracking`);
+    return response.data;
+  }
+
+  async selectDeliveryMethod(
+    requestId: string,
+    data: { type: 'email' | 'physical_mail' | 'pickup'; details: Record<string, string> }
+  ) {
+    const response = await this.client.post(
+      `/api/delivery/${requestId}/method`,
       data
     );
     return response.data;

@@ -243,7 +243,240 @@ export interface PaymentFailureResponse {
   message: string;
 }
 
-// UI State
+// ============== PARAMETER SCHEMA TYPES ==============
+
+export type ParameterType = 'String' | 'Number' | 'Boolean' | 'Date' | 'Dropdown' | 'Radio' | 'Checkboxes';
+
+export interface ParameterOption {
+  value: string | number;
+  label: string;
+  description?: string;
+}
+
+export interface StringParameter {
+  type: 'String';
+  required?: boolean;
+  description?: string;
+  minLength?: number;
+  maxLength?: number;
+  pattern?: string;
+  default?: string;
+  placeholder?: string;
+}
+
+export interface NumberParameter {
+  type: 'Number';
+  required?: boolean;
+  description?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  default?: number;
+}
+
+export interface BooleanParameter {
+  type: 'Boolean';
+  required?: boolean;
+  description?: string;
+  default?: boolean;
+}
+
+export interface DateParameter {
+  type: 'Date';
+  required?: boolean;
+  description?: string;
+  minDate?: string;
+  maxDate?: string;
+  default?: string;
+}
+
+export interface DropdownParameter {
+  type: 'Dropdown';
+  required?: boolean;
+  description?: string;
+  options: ParameterOption[];
+  default?: string | number;
+}
+
+export interface RadioParameter {
+  type: 'Radio';
+  required?: boolean;
+  description?: string;
+  options: ParameterOption[];
+  default?: string | number;
+}
+
+export interface CheckboxesParameter {
+  type: 'Checkboxes';
+  required?: boolean;
+  description?: string;
+  options: ParameterOption[];
+  default?: (string | number)[];
+  maxSelections?: number;
+}
+
+export type ParameterSchema = 
+  | StringParameter 
+  | NumberParameter 
+  | BooleanParameter 
+  | DateParameter 
+  | DropdownParameter 
+  | RadioParameter 
+  | CheckboxesParameter;
+
+export interface RequestEnvelopeSchema {
+  parameters: Record<string, ParameterSchema>;
+}
+
+export interface ServiceDefinitionWithSchema extends ServiceDefinition {
+  request?: RequestEnvelopeSchema;
+  approval?: any;
+  payment?: any;
+  processing?: any;
+  delivery?: any;
+  feedback?: any;
+}
+
+// ============== EMAIL TEMPLATE TYPES ==============
+
+export interface EmailTemplate {
+  id: string;
+  name: string;
+  templateId?: string;
+  subject: string;
+  htmlBody: string;
+  description?: string;
+  envelopeType?: 'request' | 'approval' | 'payment' | 'processing' | 'delivery' | 'feedback';
+  phase?: 'start' | 'end';
+  variables?: string[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface EmailTemplatePreview {
+  subject: string;
+  htmlBody: string;
+  variables: string[];
+}
+
+// ============== FEEDBACK TYPES ==============
+
+export interface FeedbackQuestion {
+  id: string;
+  type: 'rating' | 'text' | 'multiple-choice';
+  question: string;
+  required?: boolean;
+  options?: string[];
+  scale?: { min: number; max: number; minLabel?: string; maxLabel?: string };
+}
+
+export interface FeedbackResponse {
+  requestId: string;
+  token: string;
+  expiresAt: string;
+  questions: FeedbackQuestion[];
+  answers?: Record<string, string | number | string[]>;
+  submittedAt?: string;
+  status: 'pending' | 'submitted' | 'expired';
+}
+
+export interface FeedbackSubmitRequest {
+  requestId: string;
+  token: string;
+  answers: Record<string, string | number | string[]>;
+  comments?: string;
+}
+
+// ============== APPROVAL TYPES ==============
+
+export interface ApprovalRequest {
+  requestId: string;
+  approvalToken: string;
+  approverId: string;
+  approverRole: string;
+  requestDetails: {
+    type: string;
+    initiatorName: string;
+    initiatorEmail: string;
+    createdAt: string;
+    parameters: Record<string, any>;
+  };
+  approvalRule: {
+    type: 'all_must_approve' | 'any_one' | 'specific_approver' | 'complex';
+    otherApprovers?: Array<{ id: string; status: 'pending' | 'approved' | 'denied' }>;
+  };
+  expiresAt: string;
+  status: 'pending' | 'approved' | 'denied';
+  approvedAt?: string;
+  deniedAt?: string;
+}
+
+export interface ApprovalSubmitRequest {
+  requestId: string;
+  approvalToken: string;
+  approved: boolean;
+  justification?: string;
+  denialReason?: string;
+}
+
+export interface ApprovalResponse {
+  requestId: string;
+  approved: boolean;
+  status: 'approved' | 'denied';
+  nextEnvelope?: string;
+  message: string;
+}
+
+// ============== DELIVERY TRACKING TYPES ==============
+
+export interface DeliveryMethod {
+  type: 'email' | 'physical_mail' | 'pickup';
+  details: Record<string, string>;
+  trackingId?: string;
+  estimatedDelivery?: string;
+}
+
+export interface DeliveryTrackingInfo {
+  requestId: string;
+  status: 'pending_selection' | 'in_transit' | 'ready_for_pickup' | 'delivered' | 'failed';
+  method: DeliveryMethod;
+  currentLocation?: string;
+  lastUpdate: string;
+  estimatedDelivery?: string;
+  trackingHistory: Array<{
+    status: string;
+    location?: string;
+    timestamp: string;
+    notes?: string;
+  }>;
+}
+
+// ============== ADMIN LEARNING TYPES ==============
+
+export interface ServiceExample {
+  id: string;
+  title: string;
+  description: string;
+  difficulty: 'easy' | 'medium' | 'complex';
+  yamlDefinition: string;
+  explanation: string;
+  features: string[];
+}
+
+export interface EnvelopeGuide {
+  type: 'request' | 'approval' | 'payment' | 'processing' | 'delivery' | 'feedback';
+  title: string;
+  description: string;
+  purpose: string;
+  requiredFields: string[];
+  optionalFields: string[];
+  example: any;
+  commonMistakes: string[];
+  bestPractices: string[];
+}
+
+// ============== UI STATE TYPES ==============
+
 export interface RequestFilters {
   status?: string;
   type?: string;
