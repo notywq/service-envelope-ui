@@ -288,10 +288,10 @@ export const PaymentPage: React.FC = () => {
             fullWidth
             variant="contained"
             color="success"
-            onClick={() => navigate('/')}
+            onClick={() => window.close()}
             sx={{ mb: 1 }}
           >
-            Return to Dashboard
+            Close this Window
           </Button>
 
           <style>{`

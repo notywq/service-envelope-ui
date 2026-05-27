@@ -124,7 +124,12 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
   };
 
   const handleEditTemplate = (template: EmailTemplate) => {
-    setEditingTemplate({ ...template, isNew: false });
+    setEditingTemplate({
+      ...template,
+      envelopeType: template.envelopeType || 'request',
+      phase: template.phase || 'start',
+      isNew: false,
+    });
     setTabValue(0);
     setShowDialog(true);
   };
@@ -164,6 +169,8 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
           subject: editingTemplate.subject,
           htmlBody: editingTemplate.htmlBody,
           description: editingTemplate.description,
+          envelopeType: editingTemplate.envelopeType,
+          phase: editingTemplate.phase,
         });
         addNotification('Template created successfully', 'success');
       } else {
@@ -172,6 +179,8 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
           subject: editingTemplate.subject,
           htmlBody: editingTemplate.htmlBody,
           description: editingTemplate.description,
+          envelopeType: editingTemplate.envelopeType,
+          phase: editingTemplate.phase,
         });
         addNotification('Template updated successfully', 'success');
       }
@@ -235,57 +244,66 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
       {error && <Alert severity="error">{error}</Alert>}
 
       {/* Templates Table */}
-      <TableContainer component={Paper}>
-        <Table>
+      <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
+        <Table size="small">
           <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
             <TableRow>
-              <TableCell>Name</TableCell>
-              <TableCell>Subject</TableCell>
-              <TableCell>Envelope Type</TableCell>
-              <TableCell>Phase</TableCell>
-              <TableCell align="right">Actions</TableCell>
+              <TableCell sx={{ py: 1, px: 1.5, fontSize: '0.8rem', fontWeight: 600 }}>ID</TableCell>
+              <TableCell sx={{ py: 1, px: 1.5, fontSize: '0.8rem', fontWeight: 600 }}>Name</TableCell>
+              <TableCell sx={{ py: 1, px: 1.5, fontSize: '0.8rem', fontWeight: 600 }}>Subject</TableCell>
+              <TableCell sx={{ py: 1, px: 1.5, fontSize: '0.8rem', fontWeight: 600 }}>Envelope Type</TableCell>
+              <TableCell sx={{ py: 1, px: 1.5, fontSize: '0.8rem', fontWeight: 600 }}>Phase</TableCell>
+              <TableCell align="right" sx={{ py: 1, px: 1.5, fontSize: '0.8rem', fontWeight: 600 }}>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {templates.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
+                <TableCell colSpan={6} align="center" sx={{ py: 2 }}>
                   <Typography color="textSecondary">No templates yet. Create one to get started.</Typography>
                 </TableCell>
               </TableRow>
             ) : (
               templates.map((template) => (
-                <TableRow key={template.id} hover>
-                  <TableCell>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                <TableRow key={template.id} hover sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
+                  <TableCell sx={{ py: 0.8, px: 1.5 }}>
+                    <Typography variant="body2" sx={{ fontFamily: 'Courier New, monospace', fontSize: '0.75rem' }}>
+                      {template.id}
+                    </Typography>
+                  </TableCell>
+                  <TableCell sx={{ py: 0.8, px: 1.5 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.8rem' }}>
                       {template.name}
                     </Typography>
                   </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" color="textSecondary" noWrap>
+                  <TableCell sx={{ py: 0.8, px: 1.5 }}>
+                    <Typography variant="body2" color="textSecondary" noWrap sx={{ fontSize: '0.8rem' }}>
                       {template.subject}
                     </Typography>
                   </TableCell>
-                  <TableCell>
+                  <TableCell sx={{ py: 0.8, px: 1.5 }}>
                     <Chip
                       label={template.envelopeType || 'custom'}
                       size="small"
                       variant="outlined"
+                      sx={{ height: 22, fontSize: '0.7rem' }}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell sx={{ py: 0.8, px: 1.5 }}>
                     <Chip
                       label={template.phase || 'N/A'}
                       size="small"
                       color={template.phase === 'start' ? 'primary' : 'secondary'}
                       variant="outlined"
+                      sx={{ height: 22, fontSize: '0.7rem' }}
                     />
                   </TableCell>
-                  <TableCell align="right">
+                  <TableCell align="right" sx={{ py: 0.8, px: 1.5 }}>
                     <IconButton
                       size="small"
                       onClick={() => handleEditTemplate(template)}
                       title="Edit"
+                      sx={{ p: 0.5 }}
                     >
                       <EditIcon fontSize="small" />
                     </IconButton>
@@ -293,7 +311,7 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
                       size="small"
                       onClick={() => setDeleteConfirmId(template.id)}
                       title="Delete"
-                      sx={{ color: 'error.main' }}
+                      sx={{ color: 'error.main', p: 0.5 }}
                     >
                       <DeleteIcon fontSize="small" />
                     </IconButton>
@@ -313,6 +331,18 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
         <DialogContent sx={{ pt: 2 }}>
           {editingTemplate && (
             <Stack spacing={2}>
+              {/* ID Field */}
+              <TextField
+                fullWidth
+                label="Template ID"
+                value={editingTemplate.id}
+                onChange={(e) => setEditingTemplate({ ...editingTemplate, id: e.target.value })}
+                placeholder="e.g., approval-start-email"
+                disabled={!editingTemplate.isNew}
+                helperText={!editingTemplate.isNew ? 'ID cannot be changed after creation' : 'Unique identifier for this template'}
+                slotProps={{ inputLabel: { sx: { color: 'text.primary', fontWeight: 500 } } }}
+              />
+
               {/* Basic Info */}
               <TextField
                 fullWidth
@@ -369,7 +399,7 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
                       onChange={(e) => setEditingTemplate({ ...editingTemplate, phase: e.target.value as any })}
                     >
                       <FormControlLabel value="start" control={<Radio />} label="Start (Process Begins)" />
-                      <FormControlLabel value="end" control={<Radio />} label="End (Process Completes)" />
+                      <FormControlLabel value="end" control={<Radio />} label="End (Process Completes & Summary)" />
                     </RadioGroup>
                   </FormControl>
                 </Box>
@@ -458,8 +488,34 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
                         __html: editingTemplate.htmlBody || '<p>(No content)</p>',
                       }}
                       sx={{
-                        '& h1, & h2, & h3': { color: '#1976d2' },
-                        '& p': { margin: '8px 0' },
+                        fontFamily: 'Arial, sans-serif',
+                        fontSize: '14px',
+                        lineHeight: 1.6,
+                        color: '#333',
+                        wordWrap: 'break-word',
+                        wordBreak: 'break-word',
+                        whiteSpace: 'normal',
+                        '& h1, & h2, & h3': { 
+                          color: '#1976d2',
+                          margin: '16px 0 8px 0',
+                          lineHeight: 1.3,
+                        },
+                        '& p': { 
+                          margin: '8px 0',
+                          whiteSpace: 'normal',
+                        },
+                        '& img': {
+                          maxWidth: '100%',
+                          height: 'auto',
+                        },
+                        '& table': {
+                          borderCollapse: 'collapse',
+                          width: '100%',
+                        },
+                        '& td, & th': {
+                          padding: '8px',
+                          border: '1px solid #ddd',
+                        },
                       }}
                     />
                   </Paper>

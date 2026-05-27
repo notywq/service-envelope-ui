@@ -173,6 +173,7 @@ class ApiClient {
     yaml: string;
     type: string;
     serviceId: string;
+    initiator: string;
   }) {
     const response = await this.client.post('/api/admin/services', data);
     return response.data;
@@ -185,6 +186,7 @@ class ApiClient {
       yaml: string;
       type: string;
       serviceId: string;
+      initiator: string;
     }
   ) {
     const response = await this.client.put(`/api/admin/services/${serviceId}`, data);
@@ -212,6 +214,8 @@ class ApiClient {
     subject: string;
     htmlBody: string;
     description?: string;
+    envelopeType?: string;
+    phase?: string;
   }) {
     const response = await this.client.post('/api/admin/email-templates', data);
     return response.data;
@@ -224,6 +228,8 @@ class ApiClient {
       subject: string;
       htmlBody: string;
       description?: string;
+      envelopeType?: string;
+      phase?: string;
     }
   ) {
     const response = await this.client.put(
@@ -311,14 +317,29 @@ class ApiClient {
     return response.data;
   }
 
-  async selectDeliveryMethod(
+  async getDeliveryMethod(requestId: string) {
+    const response = await this.client.get(`/api/delivery/${requestId}/method`);
+    return response.data;
+  }
+
+  async submitDeliveryMethod(
     requestId: string,
-    data: { type: 'email' | 'physical_mail' | 'pickup'; details: Record<string, string> }
+    data: {
+      method: 'email' | 'physical_mail' | 'pickup';
+      details: Record<string, any>;
+    }
   ) {
-    const response = await this.client.post(
-      `/api/delivery/${requestId}/method`,
-      data
-    );
+    const response = await this.client.post(`/api/delivery/${requestId}/method`, data);
+    return response.data;
+  }
+
+  async getDeliveryStatus(requestId: string) {
+    const response = await this.client.get(`/api/delivery-status/${requestId}/current`);
+    return response.data;
+  }
+
+  async getDeliveryHistory(requestId: string) {
+    const response = await this.client.get(`/api/delivery-status/${requestId}/history`);
     return response.data;
   }
 

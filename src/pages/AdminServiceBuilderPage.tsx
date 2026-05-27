@@ -51,6 +51,7 @@ import {
 import YAML from 'js-yaml';
 import { api } from '../services/api';
 import { useNotification } from '../hooks/useNotification';
+import { useAuth } from '../hooks/useAuth';
 import { AdminLearningGuide } from '../components/AdminLearningGuide';
 import { EnhancedEmailTemplateManager } from '../components/EnhancedEmailTemplateManager';
 import { validateServiceDefinition } from '../utils/validateServiceDefinition';
@@ -72,6 +73,7 @@ function TabPanel(props: TabPanelProps) {
 
 export const AdminServiceBuilderPage: React.FC = () => {
   const { addNotification } = useNotification();
+  const { user } = useAuth();
 
   const [tabValue, setTabValue] = useState(0);
   const [serviceName, setServiceName] = useState('');
@@ -139,6 +141,19 @@ export const AdminServiceBuilderPage: React.FC = () => {
     }
   };
 
+  const getServiceIdFromService = (service: any) => {
+    try {
+      if (service.serviceId) return service.serviceId;
+      if (service.yaml) {
+        const parsed = YAML.load(service.yaml) as any;
+        return parsed?.serviceId || 'N/A';
+      }
+      return 'N/A';
+    } catch {
+      return 'N/A';
+    }
+  };
+
   const handleSaveService = async () => {
     if (!serviceName.trim()) {
       addNotification('Please enter a service name', 'error');
@@ -150,6 +165,11 @@ export const AdminServiceBuilderPage: React.FC = () => {
       return;
     }
 
+    if (!user?.email) {
+      addNotification('User not authenticated. Please log in again.', 'error');
+      return;
+    }
+
     setSaving(true);
     try {
       const serviceData = {
@@ -157,6 +177,7 @@ export const AdminServiceBuilderPage: React.FC = () => {
         yaml: yamlContent,
         type: parsedYaml.type,
         serviceId: parsedYaml.serviceId,
+        initiator: user.email,
       };
 
       if (isEditingExisting && selectedServiceId) {
@@ -528,7 +549,7 @@ envelopes:
                           <Chip label={service.type} size="small" variant="outlined" sx={{ fontWeight: 500 }} />
                         </TableCell>
                         <TableCell sx={{ fontFamily: 'Courier New, Courier, monospace', fontSize: '0.85rem', color: '#333', fontWeight: 500 }}>
-                          {service.id}
+                          {getServiceIdFromService(service)}
                         </TableCell>
                         <TableCell align="right">
                           <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end' }}>
@@ -1075,7 +1096,7 @@ envelopes:
                       Service ID
                     </Typography>
                     <Typography variant="body2" sx={{ fontFamily: 'Courier New, Courier, monospace', fontSize: '0.85rem' }}>
-                      {serviceToDelete.id}
+                      {getServiceIdFromService(serviceToDelete)}
                     </Typography>
                   </Box>
                   <Box>

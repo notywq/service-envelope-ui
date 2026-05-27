@@ -119,7 +119,7 @@ export const DashboardPage: React.FC = () => {
         </Typography>
         <Button
           component={RouterLink}
-          to="/services"
+          to="/requests/new"
           variant="contained"
           startIcon={<AddIcon />}
           sx={{ textTransform: 'none', fontSize: '1rem', px: 3 }}

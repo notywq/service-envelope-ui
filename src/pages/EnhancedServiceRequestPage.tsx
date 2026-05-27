@@ -27,11 +27,18 @@ import {
   TableBody,
   TableCell,
   TableRow,
+  RadioGroup,
+  Radio,
+  FormControl,
+  FormLabel,
+  TextField,
 } from '@mui/material';
 import {
   Send as SendIcon,
   ArrowBack as ArrowBackIcon,
   CheckCircle as SuccessIcon,
+  LocalShipping as ShippingIcon,
+  Email as EmailIcon,
 } from '@mui/icons-material';
 import YAML from 'js-yaml';
 import { api } from '../services/api';
@@ -47,6 +54,14 @@ interface FormData {
 
 interface FormErrors {
   [key: string]: string;
+}
+
+interface DeliveryInfo {
+  deliveryMethods?: {
+    email?: { enabled: boolean; fields?: Record<string, any>; recipient?: string; subject?: string };
+    physical_mail?: { enabled: boolean; fields?: Record<string, any>; carrier?: string; estimatedDays?: number; costPercentage?: number };
+    pickup?: { enabled: boolean; fields?: Record<string, any>; location?: string; hoursOfOperation?: string };
+  };
 }
 
 export const EnhancedServiceRequestPage: React.FC = () => {
@@ -65,6 +80,11 @@ export const EnhancedServiceRequestPage: React.FC = () => {
   const [submitted, setSubmitted] = useState(false);
   const [submittedRequestId, setSubmittedRequestId] = useState('');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  
+  // Delivery method state
+  const [deliveryInfo, setDeliveryInfo] = useState<DeliveryInfo>({});
+  const [selectedDeliveryMethod, setSelectedDeliveryMethod] = useState<'email' | 'physical_mail' | 'pickup' | ''>('');
+  const [deliveryDetails, setDeliveryDetails] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const loadServices = async () => {
@@ -85,15 +105,21 @@ export const EnhancedServiceRequestPage: React.FC = () => {
     loadServices();
   }, [addNotification]);
 
-  const selectedService = services.find((s) => s.id === formData.service);
+  const selectedService = services.find((s) => s.serviceId === formData.service);
 
-  const handleServiceChange = (serviceId: string) => {
-    const service = services.find((s) => s.id === serviceId);
-    setFormData({ service: serviceId });
+  const handleServiceChange = (service: ServiceDefinition) => {
+    // Update formData with the service ID
+    setFormData(prev => {
+      const updated = { ...prev, service: service.serviceId };
+      return updated;
+    });
+    
     setFormErrors({});
     setActiveStep(0);
+    setSelectedDeliveryMethod('');
+    setDeliveryDetails({});
     
-    // Parse service definition to extract parameters
+    // Parse service definition to extract parameters and delivery info
     if (service) {
       try {
         let serviceSchema: ServiceDefinitionWithSchema | null = null;
@@ -106,18 +132,30 @@ export const EnhancedServiceRequestPage: React.FC = () => {
           serviceSchema = { request: service.envelopes.request } as any;
         }
 
-        if (serviceSchema?.request?.parameters) {
-          setServiceParameters(serviceSchema.request.parameters);
+        // Parameters are typically at envelopes.request.parameters or request.parameters
+        let parameters = (serviceSchema as any)?.envelopes?.request?.parameters;
+        if (!parameters) {
+          parameters = serviceSchema?.request?.parameters;
+        }
+
+        if (parameters) {
+          setServiceParameters(parameters);
         } else {
           setServiceParameters({});
         }
+
+        // Extract delivery information from envelopes.delivery
+        let delivery = (serviceSchema as any)?.envelopes?.delivery || {};
+        setDeliveryInfo(delivery);
       } catch (err) {
         console.error('Error parsing service definition:', err);
         setServiceParameters({});
+        setDeliveryInfo({});
         addNotification('Error parsing service definition', 'warning');
       }
     } else {
       setServiceParameters({});
+      setDeliveryInfo({});
     }
   };
 
@@ -179,7 +217,7 @@ export const EnhancedServiceRequestPage: React.FC = () => {
   };
 
   const handleNext = () => {
-    if (activeStep === 0 && !formData.service) {
+    if (activeStep === 0 && (!formData.service || !selectedService)) {
       addNotification('Please select a service', 'warning');
       return;
     }
@@ -187,15 +225,30 @@ export const EnhancedServiceRequestPage: React.FC = () => {
       addNotification('Please fix the errors before proceeding', 'warning');
       return;
     }
-    if (activeStep === 2 && !agreedToTerms) {
+    if (activeStep === 2 && (Object.keys(deliveryInfo.deliveryMethods || {}).length > 0) && !selectedDeliveryMethod) {
+      addNotification('Please select a delivery method', 'warning');
+      return;
+    }
+    if (activeStep === 3 && !agreedToTerms) {
       addNotification('Please agree to the terms to continue', 'warning');
       return;
     }
-    setActiveStep((prev) => prev + 1);
+    
+    // Skip delivery step if no delivery methods available
+    if (activeStep === 1 && (!deliveryInfo.deliveryMethods || Object.keys(deliveryInfo.deliveryMethods).length === 0)) {
+      setActiveStep(3);
+    } else {
+      setActiveStep((prev) => prev + 1);
+    }
   };
 
   const handleBack = () => {
-    setActiveStep((prev) => prev - 1);
+    // If going back from review step and no delivery methods, skip step 2
+    if (activeStep === 3 && (!deliveryInfo.deliveryMethods || Object.keys(deliveryInfo.deliveryMethods).length === 0)) {
+      setActiveStep(1);
+    } else {
+      setActiveStep((prev) => prev - 1);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -222,8 +275,40 @@ export const EnhancedServiceRequestPage: React.FC = () => {
 
       const result = await api.submitServiceRequest(formData.service, parameters);
       setSubmittedRequestId(result.id);
+      
+      // If delivery methods are available and one is selected, submit it
+      if (selectedDeliveryMethod && (Object.keys(deliveryInfo.deliveryMethods || {}).length || 0) > 0) {
+        try {
+          const deliveryPayload = {
+            method: selectedDeliveryMethod as 'email' | 'physical_mail' | 'pickup',
+            details: {
+              [selectedDeliveryMethod]: deliveryDetails,
+            },
+          };
+          console.log('Submitting delivery method:', {
+            requestId: result.id,
+            payload: deliveryPayload,
+          });
+          await api.submitDeliveryMethod(result.id, deliveryPayload);
+          console.log('Delivery method submitted successfully');
+          addNotification('Request and delivery method submitted successfully!', 'success');
+        } catch (err: any) {
+          console.error('Error submitting delivery method:', {
+            status: err.response?.status,
+            statusText: err.response?.statusText,
+            data: err.response?.data,
+            message: err.message,
+          });
+          // Don't fail the whole submission, just warn
+          const errorMessage = err.response?.data?.error || err.message || 'Unknown error';
+          addNotification(`Request submitted, but delivery method failed: ${errorMessage}`, 'warning');
+        }
+      }
+      
       setSubmitted(true);
-      addNotification('Service request submitted successfully!', 'success');
+      if (!selectedDeliveryMethod || !deliveryInfo.deliveryMethods || Object.keys(deliveryInfo.deliveryMethods).length === 0) {
+        addNotification('Service request submitted successfully!', 'success');
+      }
     } catch (err: any) {
       console.error('Error submitting request:', err);
       addNotification(
@@ -315,6 +400,11 @@ export const EnhancedServiceRequestPage: React.FC = () => {
         <Step>
           <StepLabel>Enter Details</StepLabel>
         </Step>
+        {deliveryInfo.deliveryMethods && Object.keys(deliveryInfo.deliveryMethods).length > 0 && (
+          <Step>
+            <StepLabel>Choose Delivery Method</StepLabel>
+          </Step>
+        )}
         <Step>
           <StepLabel>Review & Submit</StepLabel>
         </Step>
@@ -326,8 +416,13 @@ export const EnhancedServiceRequestPage: React.FC = () => {
           <Stack spacing={3}>
             <Typography variant="h6">Choose a Service</Typography>
             <Select
-              value={formData.service}
-              onChange={(e) => handleServiceChange(e.target.value)}
+              value={formData.service || ''}
+              onChange={(e) => {
+                const selected = services.find((s) => s.serviceId === e.target.value);
+                if (selected) {
+                  handleServiceChange(selected);
+                }
+              }}
               displayEmpty
               fullWidth
             >
@@ -335,7 +430,7 @@ export const EnhancedServiceRequestPage: React.FC = () => {
                 <em>Select a service...</em>
               </MenuItem>
               {services.map((service) => (
-                <MenuItem key={service.id} value={service.id}>
+                <MenuItem key={service.serviceId} value={service.serviceId}>
                   <Box>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
                       {service.name}
@@ -396,7 +491,7 @@ export const EnhancedServiceRequestPage: React.FC = () => {
         )}
 
         {/* Step 3: Review & Submit */}
-        {activeStep === 2 && (
+        {activeStep === 3 && (
           <Stack spacing={3}>
             <Typography variant="h6">Review Your Request</Typography>
 
@@ -433,6 +528,38 @@ export const EnhancedServiceRequestPage: React.FC = () => {
               </Card>
             )}
 
+            {selectedDeliveryMethod && (Object.keys(deliveryInfo.deliveryMethods || {}).length || 0) > 0 && (
+              <Card>
+                <CardContent>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Delivery Method
+                  </Typography>
+                  <Table size="small" sx={{ mt: 2 }}>
+                    <TableBody>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 500 }}>Method</TableCell>
+                        <TableCell>
+                          {selectedDeliveryMethod === 'email' && 'Email'}
+                          {selectedDeliveryMethod === 'physical_mail' && 'Physical Mail'}
+                          {selectedDeliveryMethod === 'pickup' && 'Pickup'}
+                        </TableCell>
+                      </TableRow>
+                      {Object.entries(deliveryDetails).length > 0 && (
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 500 }}>Details</TableCell>
+                          <TableCell>
+                            {Object.entries(deliveryDetails)
+                              .map(([key, value]) => `${key}: ${value}`)
+                              .join(' | ')}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            )}
+
             <Alert severity="info">
               Please review your information carefully. Once submitted, you can modify your request through your
               dashboard.
@@ -449,6 +576,169 @@ export const EnhancedServiceRequestPage: React.FC = () => {
             />
           </Stack>
         )}
+
+        {/* Step 3: Choose Delivery Method */}
+        {activeStep === 2 && deliveryInfo.deliveryMethods && Object.keys(deliveryInfo.deliveryMethods).length > 0 && (
+          <Stack spacing={3}>
+            <Typography variant="h6">Choose Delivery Method</Typography>
+
+            <Alert severity="info">
+              Select how you would like to receive your documents. You can choose between email, physical mail, or pickup.
+            </Alert>
+
+            <FormControl component="fieldset">
+              <FormLabel component="legend" sx={{ mb: 2, fontWeight: 600 }}>
+                Delivery Method
+              </FormLabel>
+              <RadioGroup
+                value={selectedDeliveryMethod}
+                onChange={(e) => {
+                  setSelectedDeliveryMethod(e.target.value as 'email' | 'physical_mail' | 'pickup');
+                  setDeliveryDetails({});
+                }}
+              >
+                {/* Email Option */}
+                {deliveryInfo.deliveryMethods?.email?.enabled && (
+                  <FormControlLabel
+                    value="email"
+                    control={<Radio />}
+                    label={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <EmailIcon sx={{ fontSize: 20 }} />
+                        <Typography>Email</Typography>
+                      </Box>
+                    }
+                  />
+                )}
+
+                {/* Physical Mail Option */}
+                {deliveryInfo.deliveryMethods?.physical_mail?.enabled && (
+                  <FormControlLabel
+                    value="physical_mail"
+                    control={<Radio />}
+                    label={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <ShippingIcon sx={{ fontSize: 20 }} />
+                        <Typography>Physical Mail</Typography>
+                      </Box>
+                    }
+                  />
+                )}
+
+                {/* Pickup Option */}
+                {deliveryInfo.deliveryMethods?.pickup?.enabled && (
+                  <FormControlLabel
+                    value="pickup"
+                    control={<Radio />}
+                    label="Pickup"
+                  />
+                )}
+              </RadioGroup>
+            </FormControl>
+
+            {/* Email Details */}
+            {selectedDeliveryMethod === 'email' && (
+              <Card sx={{ backgroundColor: '#f9f9f9' }}>
+                <CardContent>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Email Details
+                  </Typography>
+                  <Stack spacing={2}>
+                    <Box sx={{ p: 1.5, backgroundColor: '#fff', borderRadius: 1, border: '1px solid #e0e0e0' }}>
+                      <Typography variant="caption" sx={{ color: '#666' }}>Recipient Email</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>{formData.email || 'No email provided'}</Typography>
+                    </Box>
+                    {Object.entries(deliveryInfo.deliveryMethods?.email?.fields || {}).map(([field, config]: [string, any]) => (
+                      <TextField
+                        key={field}
+                        fullWidth
+                        label={config.label || field.charAt(0).toUpperCase() + field.slice(1)}
+                        type={config.type === 'Number' ? 'number' : 'text'}
+                        value={deliveryDetails[field] || ''}
+                        onChange={(e) => setDeliveryDetails({ ...deliveryDetails, [field]: e.target.value })}
+                        placeholder={config.placeholder || config.description || ''}
+                        required={config.required}
+                      />
+                    ))}
+                  </Stack>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Physical Mail Details */}
+            {selectedDeliveryMethod === 'physical_mail' && (
+              <Card sx={{ backgroundColor: '#f9f9f9' }}>
+                <CardContent>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Mailing Address & Shipping Info
+                  </Typography>
+                  <Stack spacing={2}>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+                      <Box sx={{ p: 1.5, backgroundColor: '#fff', borderRadius: 1, border: '1px solid #e0e0e0' }}>
+                        <Typography variant="caption" sx={{ color: '#666' }}>Carrier</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{deliveryInfo.deliveryMethods?.physical_mail?.carrier || 'Standard'}</Typography>
+                      </Box>
+                      <Box sx={{ p: 1.5, backgroundColor: '#fff', borderRadius: 1, border: '1px solid #e0e0e0' }}>
+                        <Typography variant="caption" sx={{ color: '#666' }}>Est. Delivery Days</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{deliveryInfo.deliveryMethods?.physical_mail?.estimatedDays || '5-7'} days</Typography>
+                      </Box>
+                    </Box>
+                    {Object.entries(deliveryInfo.deliveryMethods?.physical_mail?.fields || {}).map(([field, config]: [string, any]) => (
+                      <TextField
+                        key={field}
+                        fullWidth
+                        label={config.label || field.charAt(0).toUpperCase() + field.slice(1)}
+                        type={config.type === 'Number' ? 'number' : 'text'}
+                        multiline={field === 'mailingAddress' || field === 'address'}
+                        rows={field === 'mailingAddress' || field === 'address' ? 3 : 1}
+                        value={deliveryDetails[field] || ''}
+                        onChange={(e) => setDeliveryDetails({ ...deliveryDetails, [field]: e.target.value })}
+                        placeholder={config.placeholder || config.description || ''}
+                        required={config.required}
+                      />
+                    ))}
+                  </Stack>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Pickup Details */}
+            {selectedDeliveryMethod === 'pickup' && (
+              <Card sx={{ backgroundColor: '#f9f9f9' }}>
+                <CardContent>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Pickup Information
+                  </Typography>
+                  <Stack spacing={2}>
+                    <Box sx={{ p: 1.5, backgroundColor: '#fff', borderRadius: 1, border: '1px solid #e0e0e0' }}>
+                      <Typography variant="caption" sx={{ color: '#666' }}>Location</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>{deliveryInfo.deliveryMethods?.pickup?.location || 'TBD'}</Typography>
+                    </Box>
+                    <Box sx={{ p: 1.5, backgroundColor: '#fff', borderRadius: 1, border: '1px solid #e0e0e0' }}>
+                      <Typography variant="caption" sx={{ color: '#666' }}>Hours of Operation</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>{deliveryInfo.deliveryMethods?.pickup?.hoursOfOperation || 'Standard hours'}</Typography>
+                    </Box>
+                    {Object.entries(deliveryInfo.deliveryMethods?.pickup?.fields || {}).map(([field, config]: [string, any]) => (
+                      <TextField
+                        key={field}
+                        fullWidth
+                        label={config.label || field.charAt(0).toUpperCase() + field.slice(1)}
+                        type={config.type === 'date' ? 'date' : 'text'}
+                        value={deliveryDetails[field] || ''}
+                        onChange={(e) => setDeliveryDetails({ ...deliveryDetails, [field]: e.target.value })}
+                        placeholder={config.placeholder || config.description || ''}
+                        required={config.required}
+                        slotProps={{
+                          inputLabel: { shrink: true },
+                        }}
+                      />
+                    ))}
+                  </Stack>
+                </CardContent>
+              </Card>
+            )}
+          </Stack>
+        )}
       </Paper>
 
       {/* Navigation Buttons */}
@@ -461,7 +751,7 @@ export const EnhancedServiceRequestPage: React.FC = () => {
         </Button>
 
         <Stack direction="row" spacing={2}>
-          {activeStep < 2 && (
+          {activeStep < 3 && (
             <Button
               variant="contained"
               onClick={handleNext}
@@ -471,7 +761,7 @@ export const EnhancedServiceRequestPage: React.FC = () => {
             </Button>
           )}
 
-          {activeStep === 2 && (
+          {activeStep === 3 && (
             <Button
               variant="contained"
               color="success"

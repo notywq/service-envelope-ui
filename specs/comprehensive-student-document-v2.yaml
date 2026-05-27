@@ -91,26 +91,6 @@ envelopes:
         step: 1
         default: 1
 
-      deliveryMethod:
-        type: Radio
-        required: true
-        description: "How to receive the documents"
-        options:
-          - label: "Email"
-            value: "email"
-          - label: "Physical Mail"
-            value: "physical_mail"
-          - label: "Pick-up in Person"
-            value: "pickup"
-        default: "email"
-
-      mailingAddress:
-        type: String
-        required: false
-        description: "Mailing address (required if Physical Mail selected)"
-        maxLength: 300
-        default: ""
-
       isUrgent:
         type: Boolean
         required: false
@@ -128,11 +108,11 @@ envelopes:
     approvalRules:
       type: all_must_approve
       requiredApprovers:
-        - registrar
-        - department_head
+        - barondimaranan@gmail.com
+        - baron@fowlstudios.com
     emailTemplateStartEnvelope: "SERV-999-approval-start"
     emailTemplateEndEnvelope: "SERV-999-approval-end"
-    requiresApproval: true
+    required: true
 
   payment:
     required: true
@@ -157,7 +137,7 @@ envelopes:
       - type: api_call
         name: "Verify Student Records"
         method: POST
-        url: "https://sis-api.mapua.edu.ph/students/verify"
+        url: "http://localhost:8000/api/mock/students/verify"
         headers:
           Authorization: "Bearer {{apiToken}}"
           Content-Type: "application/json"
@@ -172,7 +152,7 @@ envelopes:
       - type: api_call
         name: "Generate Academic Record"
         method: POST
-        url: "https://registry-api.mapua.edu.ph/documents/generate-record"
+        url: "http://localhost:8000/api/mock/documents/generate-record"
         headers:
           Authorization: "Bearer {{apiToken}}"
           Content-Type: "application/json"
@@ -187,7 +167,7 @@ envelopes:
       - type: api_call
         name: "Generate Transcript"
         method: POST
-        url: "https://registry-api.mapua.edu.ph/documents/generate-transcript"
+        url: "http://localhost:8000/api/mock/documents/generate-transcript"
         headers:
           Authorization: "Bearer {{apiToken}}"
           Content-Type: "application/json"
@@ -201,14 +181,13 @@ envelopes:
       - type: api_call
         name: "Prepare Delivery Package"
         method: POST
-        url: "https://registry-api.mapua.edu.ph/documents/prepare-delivery"
+        url: "http://localhost:8000/api/mock/documents/prepare-delivery"
         headers:
           Authorization: "Bearer {{apiToken}}"
           Content-Type: "application/json"
         payload:
           studentId: "{{studentId}}"
           documentTypes: "{{documentTypes}}"
-          deliveryMethod: "{{deliveryMethod}}"
           numberOfCopies: "{{numberOfCopies}}"
         timeout: 60000
         retries: 2
@@ -224,15 +203,23 @@ envelopes:
         recipient: "{{email}}"
         attachmentUrls:
           - "https://documents.mapua.edu.ph/{{requestId}}/documents.pdf"
+        fields: {}
       physical_mail:
         enabled: true
-        address: "{{mailingAddress}}"
-        requiresSignature: false
-        trackingEnabled: true
         carrier: "LBC"
         estimatedDays: 5
         costPercentage: 15
         requiresApprovalBeforeShip: true
+        requiresSignature: false
+        trackingEnabled: true
+        fields:
+          mailingAddress:
+            type: String
+            required: true
+            label: "Mailing Address"
+            description: "Full mailing address for delivery"
+            maxLength: 300
+            placeholder: "Street Address, City, Province, Postal Code"
       pickup:
         enabled: true
         location: "MAPUA Registrar's Office, Room 201, Ground Floor, MAPUA Campus"
@@ -240,6 +227,7 @@ envelopes:
         requiresIDVerification: true
         pickupDeadlineDays: 30
         notificationRequired: true
+        fields: {}
 
   feedback:
     required: true

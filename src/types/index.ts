@@ -118,6 +118,7 @@ export interface HistoryEntry {
 // Service Request
 export interface ServiceRequest {
   id: string;
+  serviceId?: string;
   type: string;
   initiator: string;
   status: 'queued' | 'processing' | 'pending_external' | 'completed' | 'failed' | 'cancelled';
@@ -135,6 +136,7 @@ export interface ServiceListResponse {
 
 export interface ServiceDefinition {
   id: string;
+  serviceId: string;
   name: string;
   description: string;
   type: string;

@@ -87,67 +87,160 @@ const EnvelopeContentRenderer: React.FC<{ envelope: any; envelopeType: string }>
   };
 
   const renderApprovalEnvelope = () => {
+    // Try to get approval rules from the envelope data
+    const approvalRules = envelope?.approvalRules;
     const approvers = envelope?.approvers;
-    if (!approvers || approvers.length === 0) {
+    const requiresApproval = envelope?.requiresApproval;
+    const status = envelope?.status;
+
+    // If approval is not required at service level, show that
+    if (requiresApproval === false) {
       return (
-        <Typography variant="body2" color="textSecondary">
-          No approvers configured
-        </Typography>
+        <Box>
+          <Typography variant="body2" color="textSecondary">
+            Approval is not required for this service
+          </Typography>
+        </Box>
       );
     }
 
+    // If approval is required but waived for this request, show both the rules AND the waived status
+    const isWaived = status === 'waived';
+
     return (
       <Stack spacing={2}>
-        <Box>
-          <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-            Approval Rules
-          </Typography>
-          <Typography variant="body2">
-            Type: <strong>{envelope.approvalRules?.type || 'N/A'}</strong>
-          </Typography>
-        </Box>
-        <Box>
-          <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-            Approvers
-          </Typography>
-          <Table size="small" sx={{ bgcolor: '#fafafa' }}>
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 600 }}>ID</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Role</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {approvers.map((approver: any, idx: number) => (
-                <TableRow key={idx}>
-                  <TableCell sx={{ fontFamily: 'monospace' }}>{approver.id}</TableCell>
-                  <TableCell>{approver.role}</TableCell>
+        {/* Waived Status Alert */}
+        {isWaived && (
+          <Alert severity="info">
+            Approval was waived for this request (auto-approved or skipped by business rules)
+          </Alert>
+        )}
+
+        {/* Approval Rules */}
+        {approvalRules && (
+          <Box>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+              Approval Rules
+            </Typography>
+            <Table size="small" sx={{ bgcolor: '#fafafa' }}>
+              <TableBody>
+                <TableRow>
+                  <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600, width: '25%' }}>
+                    Rule Type
+                  </TableCell>
                   <TableCell>
-                    <Chip
-                      label={approver.status || 'pending'}
-                      size="small"
-                      color={
-                        approver.status === 'approved'
-                          ? 'success'
-                          : approver.status === 'denied'
-                          ? 'error'
-                          : 'default'
-                      }
-                      variant="outlined"
-                    />
+                    <Chip label={approvalRules.type?.replace(/_/g, ' ').toUpperCase()} size="small" />
                   </TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Box>
+                {approvalRules.requiredApprovers && approvalRules.requiredApprovers.length > 0 && (
+                  <TableRow>
+                    <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                      Required Approvers
+                    </TableCell>
+                    <TableCell>
+                      <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', display: 'flex' }}>
+                        {approvalRules.requiredApprovers.map((approver: string) => (
+                          <Chip key={approver} label={approver} size="small" variant="outlined" />
+                        ))}
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                )}
+                {approvalRules.atLeastOneOf && approvalRules.atLeastOneOf.length > 0 && (
+                  <TableRow>
+                    <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                      At Least One Of
+                    </TableCell>
+                    <TableCell>
+                      <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', display: 'flex' }}>
+                        {approvalRules.atLeastOneOf.map((approver: string) => (
+                          <Chip key={approver} label={approver} size="small" variant="outlined" color="warning" />
+                        ))}
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                )}
+                {approvalRules.specificApproverId && (
+                  <TableRow>
+                    <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                      Approver
+                    </TableCell>
+                    <TableCell>
+                      <Chip label={approvalRules.specificApproverId} size="small" variant="outlined" />
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </Box>
+        )}
+
+        {/* Approvers Status */}
+        {approvers && approvers.length > 0 && (
+          <Box>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+              Approver Status
+            </Typography>
+            <Table size="small" sx={{ bgcolor: '#fafafa' }}>
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 600 }}>Role</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Approved At</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {approvers.map((approver: any, idx: number) => (
+                  <TableRow key={idx}>
+                    <TableCell>{approver.role || approver.id}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={approver.status || 'pending'}
+                        size="small"
+                        color={
+                          approver.status === 'approved'
+                            ? 'success'
+                            : approver.status === 'denied'
+                            ? 'error'
+                            : 'default'
+                        }
+                        variant="outlined"
+                      />
+                    </TableCell>
+                    <TableCell sx={{ fontSize: '0.875rem' }}>
+                      {approver.approvedAt ? new Date(approver.approvedAt).toLocaleString() : '-'}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Box>
+        )}
+
+        {/* Show message if no approvers yet */}
+        {(!approvers || approvers.length === 0) && approvalRules && !isWaived && (
+          <Typography variant="body2" color="textSecondary">
+            Awaiting approvals from {approvalRules.requiredApprovers?.length || 0} required approver(s)
+          </Typography>
+        )}
       </Stack>
     );
   };
 
   const renderPaymentEnvelope = () => {
     const charges = envelope?.charges;
+    const paymentProvider = envelope?.paymentProvider || envelope?.paymentMethod;
+    const paymentStatus = envelope?.paymentStatus || envelope?.status;
+
+    // Show if payment is not required
+    if (!envelope?.required) {
+      return (
+        <Typography variant="body2" color="textSecondary">
+          Payment is not required for this service
+        </Typography>
+      );
+    }
+
     if (!charges || charges.length === 0) {
       return (
         <Typography variant="body2" color="textSecondary">
@@ -156,42 +249,81 @@ const EnvelopeContentRenderer: React.FC<{ envelope: any; envelopeType: string }>
       );
     }
 
+    // Calculate total
+    const total = charges.reduce((sum: number, charge: any) => {
+      const chargeAmount = (charge.amount || 0) * (charge.quantity || 1);
+      return sum + chargeAmount;
+    }, 0);
+
+    const currency = charges[0]?.currency || 'PHP';
+
     return (
       <Stack spacing={2}>
+        {/* Payment Provider */}
+        {paymentProvider && (
+          <Box>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+              Payment Method
+            </Typography>
+            <Typography variant="body2" sx={{ textTransform: 'uppercase', fontWeight: 500 }}>
+              {paymentProvider}
+            </Typography>
+          </Box>
+        )}
+
+        {/* Payment Status */}
         <Box>
           <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-            Payment Method
+            Payment Status
           </Typography>
-          <Typography variant="body2">{envelope.paymentMethod || 'Not specified'}</Typography>
+          <Chip
+            label={paymentStatus?.replace(/_/g, ' ').toUpperCase()}
+            color={
+              paymentStatus === 'completed' || paymentStatus === 'paid'
+                ? 'success'
+                : paymentStatus === 'pending_external'
+                ? 'warning'
+                : 'default'
+            }
+            variant="outlined"
+            size="small"
+          />
         </Box>
+
+        {/* Charges */}
         <Box>
           <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-            Charges
+            Charges ({charges.length})
           </Typography>
           <Table size="small" sx={{ bgcolor: '#fafafa' }}>
             <TableHead>
               <TableRow>
                 <TableCell sx={{ fontWeight: 600 }}>Item</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 600 }}>
+                  Quantity
+                </TableCell>
+                <TableCell align="right" sx={{ fontWeight: 600 }}>
                   Amount
                 </TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Currency</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {charges.map((charge: any, idx: number) => (
                 <TableRow key={idx}>
                   <TableCell>{charge.item}</TableCell>
-                  <TableCell align="right">{charge.amount}</TableCell>
-                  <TableCell>{charge.currency}</TableCell>
+                  <TableCell align="right">{charge.quantity || 1}</TableCell>
+                  <TableCell align="right">
+                    {((charge.amount || 0) * (charge.quantity || 1)).toLocaleString()} {currency}
+                  </TableCell>
                 </TableRow>
               ))}
-              <TableRow sx={{ bgcolor: '#f0f0f0' }}>
-                <TableCell sx={{ fontWeight: 600 }}>Total</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>
-                  {charges.reduce((sum: number, c: any) => sum + (c.amount || 0), 0)}
+              <TableRow sx={{ bgcolor: '#e8f5e9' }}>
+                <TableCell colSpan={2} sx={{ fontWeight: 600 }}>
+                  Total
                 </TableCell>
-                <TableCell>{charges[0]?.currency || ''}</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 600 }}>
+                  {total.toLocaleString()} {currency}
+                </TableCell>
               </TableRow>
             </TableBody>
           </Table>
@@ -253,59 +385,218 @@ const EnvelopeContentRenderer: React.FC<{ envelope: any; envelopeType: string }>
   };
 
   const renderDeliveryEnvelope = () => {
+    const deliveryMethods = envelope?.deliveryMethods || {};
+    const selectedMethod = envelope?.method;
+
+    // Show available delivery methods
     return (
       <Stack spacing={2}>
-        <Box>
-          <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-            Delivery Configuration
-          </Typography>
-          <Stack spacing={1}>
-            {envelope.method && (
-              <Box>
-                <Typography variant="caption" color="textSecondary">
-                  Method
-                </Typography>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {envelope.method}
-                </Typography>
-              </Box>
-            )}
-            {envelope.details?.templateId && (
-              <Box>
-                <Typography variant="caption" color="textSecondary">
-                  Email Template
-                </Typography>
-                <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                  {envelope.details.templateId}
-                </Typography>
-              </Box>
-            )}
-            {envelope.details?.subject && (
-              <Box>
-                <Typography variant="caption" color="textSecondary">
-                  Subject
-                </Typography>
-                <Typography variant="body2">{envelope.details.subject}</Typography>
-              </Box>
-            )}
-            {envelope.deliveryAttempts !== undefined && (
-              <Box>
-                <Typography variant="caption" color="textSecondary">
-                  Delivery Attempts
-                </Typography>
-                <Typography variant="body2">{envelope.deliveryAttempts}</Typography>
-              </Box>
-            )}
-          </Stack>
-        </Box>
+        {/* Selected Delivery Method */}
+        {selectedMethod && (
+          <Box>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+              Selected Delivery Method
+            </Typography>
+            <Chip label={selectedMethod?.replace(/_/g, ' ').toUpperCase()} size="small" color="primary" variant="outlined" />
+          </Box>
+        )}
+
+        {/* Available Delivery Methods */}
+        {Object.keys(deliveryMethods).length > 0 && (
+          <Box>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+              Available Delivery Methods
+            </Typography>
+            <Stack spacing={1.5}>
+              {Object.entries(deliveryMethods).map(([method, details]: any) => (
+                details?.enabled && (
+                  <Box
+                    key={method}
+                    sx={{
+                      p: 1.5,
+                      bgcolor: '#fafafa',
+                      borderRadius: 1,
+                      borderLeft: '3px solid',
+                      borderLeftColor: selectedMethod === method ? '#1976d2' : '#ccc',
+                    }}
+                  >
+                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, textTransform: 'capitalize' }}>
+                      {method.replace(/_/g, ' ')}
+                    </Typography>
+
+                    {method === 'email' && details.recipient && (
+                      <Stack spacing={0.5}>
+                        <Box>
+                          <Typography variant="caption" color="textSecondary">
+                            Recipient
+                          </Typography>
+                          <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                            {details.recipient}
+                          </Typography>
+                        </Box>
+                        {details.subject && (
+                          <Box>
+                            <Typography variant="caption" color="textSecondary">
+                              Subject
+                            </Typography>
+                            <Typography variant="body2">{details.subject}</Typography>
+                          </Box>
+                        )}
+                      </Stack>
+                    )}
+
+                    {method === 'physical_mail' && (
+                      <Stack spacing={0.5}>
+                        {details.address && (
+                          <Box>
+                            <Typography variant="caption" color="textSecondary">
+                              Address
+                            </Typography>
+                            <Typography variant="body2">{details.address}</Typography>
+                          </Box>
+                        )}
+                        {details.carrier && (
+                          <Box>
+                            <Typography variant="caption" color="textSecondary">
+                              Carrier
+                            </Typography>
+                            <Typography variant="body2">{details.carrier}</Typography>
+                          </Box>
+                        )}
+                        {details.estimatedDays && (
+                          <Box>
+                            <Typography variant="caption" color="textSecondary">
+                              Estimated Days
+                            </Typography>
+                            <Typography variant="body2">{details.estimatedDays} days</Typography>
+                          </Box>
+                        )}
+                      </Stack>
+                    )}
+
+                    {method === 'pickup' && (
+                      <Stack spacing={0.5}>
+                        {details.location && (
+                          <Box>
+                            <Typography variant="caption" color="textSecondary">
+                              Location
+                            </Typography>
+                            <Typography variant="body2">{details.location}</Typography>
+                          </Box>
+                        )}
+                        {details.hoursOfOperation && (
+                          <Box>
+                            <Typography variant="caption" color="textSecondary">
+                              Hours
+                            </Typography>
+                            <Typography variant="body2">{details.hoursOfOperation}</Typography>
+                          </Box>
+                        )}
+                        {details.pickupDeadlineDays && (
+                          <Box>
+                            <Typography variant="caption" color="textSecondary">
+                              Pickup Deadline
+                            </Typography>
+                            <Typography variant="body2">{details.pickupDeadlineDays} days</Typography>
+                          </Box>
+                        )}
+                      </Stack>
+                    )}
+                  </Box>
+                )
+              ))}
+            </Stack>
+          </Box>
+        )}
+
+        {/* Delivery Status */}
+        {envelope?.status && (
+          <Box>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+              Status
+            </Typography>
+            <Chip
+              label={envelope.status?.replace(/_/g, ' ').toUpperCase()}
+              color={
+                envelope.status === 'completed'
+                  ? 'success'
+                  : envelope.status === 'pending'
+                  ? 'warning'
+                  : 'default'
+              }
+              variant="outlined"
+              size="small"
+            />
+          </Box>
+        )}
+
+        {envelope?.deliveryAttempts !== undefined && (
+          <Box>
+            <Typography variant="caption" color="textSecondary">
+              Delivery Attempts
+            </Typography>
+            <Typography variant="body2">{envelope.deliveryAttempts}</Typography>
+          </Box>
+        )}
       </Stack>
     );
   };
 
   const renderFeedbackEnvelope = () => {
     const feedback = envelope?.feedback;
+    const isRequired = envelope?.required;
+    const expiryDays = envelope?.expiryDays;
+    const reminderDaysBefore = envelope?.reminderDaysBefore;
+
+    // Show if feedback is not required
+    if (!isRequired) {
+      return (
+        <Typography variant="body2" color="textSecondary">
+          Feedback is not required for this service
+        </Typography>
+      );
+    }
+
     return (
       <Stack spacing={2}>
+        {/* Feedback Configuration */}
+        <Box>
+          <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+            Feedback Configuration
+          </Typography>
+          <Table size="small" sx={{ bgcolor: '#fafafa' }}>
+            <TableBody>
+              {expiryDays && (
+                <TableRow>
+                  <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600, width: '25%' }}>
+                    Expiry Days
+                  </TableCell>
+                  <TableCell>{expiryDays} days</TableCell>
+                </TableRow>
+              )}
+              {reminderDaysBefore && (
+                <TableRow>
+                  <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                    Reminder Before
+                  </TableCell>
+                  <TableCell>{reminderDaysBefore} days</TableCell>
+                </TableRow>
+              )}
+              {envelope?.notificationRequired && (
+                <TableRow>
+                  <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                    Notifications
+                  </TableCell>
+                  <TableCell>
+                    <Chip label="Enabled" size="small" color="success" variant="outlined" />
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </Box>
+
+        {/* Feedback Received */}
         {feedback && Object.keys(feedback).length > 0 ? (
           <Box>
             <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
@@ -316,9 +607,23 @@ const EnvelopeContentRenderer: React.FC<{ envelope: any; envelopeType: string }>
             </Box>
           </Box>
         ) : (
-          <Typography variant="body2" color="textSecondary">
-            No feedback received yet
-          </Typography>
+          <Box>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+              Status
+            </Typography>
+            <Chip
+              label={envelope?.status?.replace(/_/g, ' ').toUpperCase() || 'PENDING'}
+              color={
+                envelope?.status === 'completed'
+                  ? 'success'
+                  : envelope?.status === 'pending'
+                  ? 'warning'
+                  : 'default'
+              }
+              variant="outlined"
+              size="small"
+            />
+          </Box>
         )}
       </Stack>
     );

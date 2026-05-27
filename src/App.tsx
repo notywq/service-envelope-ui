@@ -28,11 +28,11 @@ import { NotificationDisplay } from './components/NotificationDisplay';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { RequestDetailPage } from './pages/RequestDetailPage';
-import { ServiceBuilderPage } from './pages/ServiceBuilderPage';
+import { EnhancedServiceRequestPage as ServiceBuilderPage } from './pages/EnhancedServiceRequestPage';
 import { PaymentPage } from './pages/PaymentPage';
 import { AdminPage } from './pages/AdminPage';
 import { FeedbackPage } from './pages/FeedbackPage';
-import { ApprovalDecisionPage } from './pages/ApprovalDecisionPage';
+import { ApprovalPage } from './pages/ApprovalPage';
 import { DeliveryTrackingPage } from './pages/DeliveryTrackingPage';
 import { EnhancedServiceRequestPage } from './pages/EnhancedServiceRequestPage';
 import './App.css';
@@ -176,10 +176,12 @@ function AppInner() {
   const location = useLocation();
   const isApprovalPage = location.pathname.startsWith('/approvals/');
   const isPaymentPage = location.pathname.startsWith('/payment');
+  const isDeliveryPage = location.pathname.startsWith('/delivery/');
+  const isFeedbackPage = location.pathname.startsWith('/feedback/');
 
   return (
     <>
-      {!isApprovalPage && !isPaymentPage ? (
+      {!isApprovalPage && !isPaymentPage && !isDeliveryPage && !isFeedbackPage ? (
         <Layout>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
@@ -239,7 +241,7 @@ function AppInner() {
           <Container maxWidth="lg">
             <Routes>
               {/* Public approval page - no layout, no authentication required */}
-              <Route path="/approvals/:token" element={<ApprovalDecisionPage />} />
+              <Route path="/approvals/:token" element={<ApprovalPage />} />
               
               {/* Public feedback page - no layout, no authentication required */}
               <Route path="/feedback/:token" element={<FeedbackPage />} />

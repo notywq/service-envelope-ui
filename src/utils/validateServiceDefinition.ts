@@ -459,11 +459,15 @@ function validateDeliveryEnvelope(envelope: any, errors: ValidationError[]): voi
       }
 
       if (method === 'physical_mail') {
-        if (!methodConfig.address) {
+        // Check if address is provided either as hardcoded property OR as a field definition
+        const hasAddress = methodConfig.address || 
+          (methodConfig.fields && methodConfig.fields.mailingAddress);
+        
+        if (!hasAddress) {
           errors.push({
             section: 'delivery.deliveryMethods.physical_mail',
             field: 'address',
-            message: 'Physical mail delivery requires "address"',
+            message: 'Physical mail delivery requires "address" or fields.mailingAddress',
             severity: 'error',
           });
         }
