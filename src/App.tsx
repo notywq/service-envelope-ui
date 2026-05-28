@@ -21,6 +21,7 @@ import {
   Build as BuildIcon,
   Settings as SettingsIcon,
   Logout as LogoutIcon,
+  Help as HelpIcon,
 } from '@mui/icons-material';
 import { AuthProvider, AuthContext } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
@@ -32,6 +33,7 @@ import { ServiceBrowsePage } from './pages/ServiceBrowsePage';
 import { EnhancedServiceRequestPage } from './pages/EnhancedServiceRequestPage';
 import { PaymentPage } from './pages/PaymentPage';
 import { AdminPage } from './pages/AdminPage';
+import { DocumentationPage } from './pages/DocumentationPage';
 import { FeedbackPage } from './pages/FeedbackPage';
 import { ApprovalPage } from './pages/ApprovalPage';
 import { DeliveryTrackingPage } from './pages/DeliveryTrackingPage';
@@ -111,6 +113,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <NavLink icon={<DashboardIcon fontSize="small" />} label="Requests" href="/dashboard" />
             <NavLink icon={<BuildIcon fontSize="small" />} label="Services" href="/services" />
             <NavLink icon={<SettingsIcon fontSize="small" />} label="Admin" href="/admin" />
+            <NavLink icon={<HelpIcon fontSize="small" />} label="Documentation" href="/documentation" />
           </Box>
 
           {/* User Menu */}
@@ -227,6 +230,15 @@ function AppInner() {
               element={
                 <ProtectedRoute>
                   <AdminPage />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/documentation"
+              element={
+                <ProtectedRoute>
+                  <DocumentationPage />
                 </ProtectedRoute>
               }
             />

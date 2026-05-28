@@ -1,4 +1,5 @@
 # SERVICE DEFINITION RULES - Complete Technical Blueprint v2.0
+# ALIGNED WITH: Service Definition Schema v1.0.1 (May 29, 2026)
 #
 # PURPOSE: This is the DEFINITIVE REFERENCE for all Service Envelope YAML definitions.
 # Every service created with the Service Envelope system MUST follow these rules and patterns.

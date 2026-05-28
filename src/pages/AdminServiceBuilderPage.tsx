@@ -49,6 +49,7 @@ import {
   Info as InfoIcon,
   Warning as WarningIcon,
   Verified as VerifiedIcon,
+  Refresh as RefreshIcon,
 } from '@mui/icons-material';
 import YAML from 'js-yaml';
 import { api } from '../services/api';
@@ -94,28 +95,39 @@ export const AdminServiceBuilderPage: React.FC = () => {
   
   // Schema-related state
   const [schemaLoading, setSchemaLoading] = useState(true);
-  const [schemaVersion, setSchemaVersion] = useState<string | null>(null);
+  const [schemaVersion, setSchemaVersion] = useState<string>('unknown');
   const [schemaError, setSchemaError] = useState<string>('');
+  const [schemaReloading, setSchemaReloading] = useState(false);
 
   useEffect(() => {
     const loadSchemaAndServices = async () => {
       try {
-        // Load JSON Schema
+        // Load latest JSON Schema
         setSchemaLoading(true);
         setSchemaError('');
         
         try {
-          const schemaData = await api.getSchema();
+          const schemaData = await api.getLatestSchemaVersion();
           schemaValidator.setSchema(schemaData.schema, schemaData.version);
-          setSchemaVersion(schemaData.version);
-          console.log('✅ Schema loaded:', {
-            version: schemaData.version,
+          const version = schemaData.version || 'unknown';
+          setSchemaVersion(version);
+          
+          // Verify schema was set in validator
+          const validatorVersion = schemaValidator.getSchemaVersion();
+          console.log('✅ Latest schema loaded:', {
+            version: version,
+            validatorVersion: validatorVersion,
+            match: version === validatorVersion,
             timestamp: schemaData.timestamp,
           });
-          addNotification(`Schema v${schemaData.version} loaded`, 'success');
+          addNotification(`Schema v${version} loaded`, 'success');
         } catch (schemaErr: any) {
-          console.error('⚠️ Error loading schema:', schemaErr.message);
+          console.error('⚠️ Error loading schema:', {
+            message: schemaErr.message,
+            status: schemaErr.response?.status,
+          });
           setSchemaError('Could not load JSON Schema from server');
+          setSchemaVersion('local-only');
           addNotification('Schema not available - using local validation only', 'warning');
         }
 
@@ -314,6 +326,44 @@ export const AdminServiceBuilderPage: React.FC = () => {
     setIsEditingExisting(false);
   };
 
+  const handleReloadSchema = async () => {
+    try {
+      setSchemaReloading(true);
+      setSchemaError('');
+      
+      console.log('🔄 Calling /api/admin/schema/reload...');
+      await api.reloadSchema();
+      console.log('✅ Reload successful, fetching latest schema...');
+      
+      // Fetch the latest schema after reload
+      const schemaData = await api.getLatestSchemaVersion();
+      schemaValidator.setSchema(schemaData.schema, schemaData.version);
+      const version = schemaData.version || 'unknown';
+      setSchemaVersion(version);
+      
+      // Verify reload worked
+      const validatorVersion = schemaValidator.getSchemaVersion();
+      console.log('✅ Schema reloaded and updated:', {
+        newVersion: version,
+        validatorVersion: validatorVersion,
+        match: version === validatorVersion,
+        timestamp: schemaData.timestamp,
+      });
+      
+      addNotification(`Schema v${version} reloaded successfully`, 'success');
+    } catch (err: any) {
+      console.error('❌ Error reloading schema:', {
+        message: err.message,
+        status: err.response?.status,
+        data: err.response?.data,
+      });
+      setSchemaError('Failed to reload schema');
+      addNotification('Failed to reload schema from MongoDB', 'error');
+    } finally {
+      setSchemaReloading(false);
+    }
+  };
+
   const handleDeleteClick = (service: any) => {
     setServiceToDelete(service);
     setDeleteDialogOpen(true);
@@ -445,6 +495,33 @@ envelopes:
                 />
               </Tooltip>
             )}
+            
+            {/* Reload Schema Button */}
+            <Tooltip title="Reload schema from MongoDB">
+              <IconButton
+                size="small"
+                onClick={handleReloadSchema}
+                disabled={schemaReloading}
+                sx={{
+                  ml: 1,
+                  color: '#1976d2',
+                  '&:hover': {
+                    backgroundColor: '#f0f0f0',
+                  },
+                }}
+              >
+                <RefreshIcon
+                  fontSize="small"
+                  sx={{
+                    animation: schemaReloading ? 'spin 1s linear infinite' : 'none',
+                    '@keyframes spin': {
+                      '0%': { transform: 'rotate(0deg)' },
+                      '100%': { transform: 'rotate(360deg)' },
+                    },
+                  }}
+                />
+              </IconButton>
+            </Tooltip>
           </Box>
         </Box>
       </Box>

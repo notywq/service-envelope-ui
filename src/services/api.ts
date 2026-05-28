@@ -373,6 +373,11 @@ class ApiClient {
     return response.data;
   }
 
+  async reloadSchema() {
+    const response = await this.client.post('/api/admin/schema/reload');
+    return response.data;
+  }
+
   // ========== HEALTH CHECK ==========
 
   async health() {
