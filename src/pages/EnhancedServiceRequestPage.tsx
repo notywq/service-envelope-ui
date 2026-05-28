@@ -234,21 +234,11 @@ export const EnhancedServiceRequestPage: React.FC = () => {
       return;
     }
     
-    // Skip delivery step if no delivery methods available
-    if (activeStep === 1 && (!deliveryInfo.deliveryMethods || Object.keys(deliveryInfo.deliveryMethods).length === 0)) {
-      setActiveStep(3);
-    } else {
-      setActiveStep((prev) => prev + 1);
-    }
+    setActiveStep((prev) => prev + 1);
   };
 
   const handleBack = () => {
-    // If going back from review step and no delivery methods, skip step 2
-    if (activeStep === 3 && (!deliveryInfo.deliveryMethods || Object.keys(deliveryInfo.deliveryMethods).length === 0)) {
-      setActiveStep(1);
-    } else {
-      setActiveStep((prev) => prev - 1);
-    }
+    setActiveStep((prev) => prev - 1);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -273,27 +263,32 @@ export const EnhancedServiceRequestPage: React.FC = () => {
       const parameters: Record<string, any> = { ...formData };
       delete parameters.service;
 
+      // Step 1: Submit request with parameters (NO delivery method)
+      console.log('📋 Step 1: Submitting request with parameters...');
       const result = await api.submitServiceRequest(formData.service, parameters);
+      console.log('✅ Request submitted:', result);
       setSubmittedRequestId(result.id);
       
-      // If delivery methods are available and one is selected, submit it
+      // Step 2: Submit delivery details (if available)
       if (selectedDeliveryMethod && (Object.keys(deliveryInfo.deliveryMethods || {}).length || 0) > 0) {
         try {
-          const deliveryPayload = {
-            method: selectedDeliveryMethod as 'email' | 'physical_mail' | 'pickup',
-            details: {
-              [selectedDeliveryMethod]: deliveryDetails,
-            },
-          };
-          console.log('Submitting delivery method:', {
+          console.log('📦 Step 2: Submitting delivery details...');
+          console.log('Delivery payload:', {
             requestId: result.id,
-            payload: deliveryPayload,
+            deliveryMethod: selectedDeliveryMethod,
+            deliveryDetails,
           });
-          await api.submitDeliveryMethod(result.id, deliveryPayload);
-          console.log('Delivery method submitted successfully');
-          addNotification('Request and delivery method submitted successfully!', 'success');
+          
+          await api.submitDeliveryDetails(
+            result.id,
+            selectedDeliveryMethod as 'email' | 'physical_mail' | 'pickup',
+            deliveryDetails
+          );
+          
+          console.log('✅ Delivery details submitted successfully');
+          addNotification('Request and delivery details submitted successfully!', 'success');
         } catch (err: any) {
-          console.error('Error submitting delivery method:', {
+          console.error('❌ Error submitting delivery details:', {
             status: err.response?.status,
             statusText: err.response?.statusText,
             data: err.response?.data,
@@ -301,7 +296,7 @@ export const EnhancedServiceRequestPage: React.FC = () => {
           });
           // Don't fail the whole submission, just warn
           const errorMessage = err.response?.data?.error || err.message || 'Unknown error';
-          addNotification(`Request submitted, but delivery method failed: ${errorMessage}`, 'warning');
+          addNotification(`Request submitted, but delivery details failed: ${errorMessage}`, 'warning');
         }
       }
       
@@ -400,11 +395,9 @@ export const EnhancedServiceRequestPage: React.FC = () => {
         <Step>
           <StepLabel>Enter Details</StepLabel>
         </Step>
-        {deliveryInfo.deliveryMethods && Object.keys(deliveryInfo.deliveryMethods).length > 0 && (
-          <Step>
-            <StepLabel>Choose Delivery Method</StepLabel>
-          </Step>
-        )}
+        <Step>
+          <StepLabel>Choose Delivery Method</StepLabel>
+        </Step>
         <Step>
           <StepLabel>Review & Submit</StepLabel>
         </Step>
@@ -578,121 +571,127 @@ export const EnhancedServiceRequestPage: React.FC = () => {
         )}
 
         {/* Step 3: Choose Delivery Method */}
-        {activeStep === 2 && deliveryInfo.deliveryMethods && Object.keys(deliveryInfo.deliveryMethods).length > 0 && (
+        {activeStep === 2 && (
           <Stack spacing={3}>
             <Typography variant="h6">Choose Delivery Method</Typography>
 
-            <Alert severity="info">
-              Select how you would like to receive your documents. You can choose between email, physical mail, or pickup.
-            </Alert>
+            {!deliveryInfo.deliveryMethods || Object.keys(deliveryInfo.deliveryMethods).length === 0 ? (
+              <Alert severity="info">
+                This service doesn't require delivery. Click Next to proceed to review.
+              </Alert>
+            ) : (
+              <>
+                <Alert severity="info">
+                  Select how you would like to receive your documents. You can choose between email, physical mail, or pickup.
+                </Alert>
 
-            <FormControl component="fieldset">
-              <FormLabel component="legend" sx={{ mb: 2, fontWeight: 600 }}>
-                Delivery Method
-              </FormLabel>
-              <RadioGroup
-                value={selectedDeliveryMethod}
-                onChange={(e) => {
-                  setSelectedDeliveryMethod(e.target.value as 'email' | 'physical_mail' | 'pickup');
-                  setDeliveryDetails({});
-                }}
-              >
-                {/* Email Option */}
-                {deliveryInfo.deliveryMethods?.email?.enabled && (
-                  <FormControlLabel
-                    value="email"
-                    control={<Radio />}
-                    label={
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <EmailIcon sx={{ fontSize: 20 }} />
-                        <Typography>Email</Typography>
-                      </Box>
-                    }
-                  />
-                )}
-
-                {/* Physical Mail Option */}
-                {deliveryInfo.deliveryMethods?.physical_mail?.enabled && (
-                  <FormControlLabel
-                    value="physical_mail"
-                    control={<Radio />}
-                    label={
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <ShippingIcon sx={{ fontSize: 20 }} />
-                        <Typography>Physical Mail</Typography>
-                      </Box>
-                    }
-                  />
-                )}
-
-                {/* Pickup Option */}
-                {deliveryInfo.deliveryMethods?.pickup?.enabled && (
-                  <FormControlLabel
-                    value="pickup"
-                    control={<Radio />}
-                    label="Pickup"
-                  />
-                )}
-              </RadioGroup>
-            </FormControl>
-
-            {/* Email Details */}
-            {selectedDeliveryMethod === 'email' && (
-              <Card sx={{ backgroundColor: '#f9f9f9' }}>
-                <CardContent>
-                  <Typography variant="subtitle2" gutterBottom>
-                    Email Details
-                  </Typography>
-                  <Stack spacing={2}>
-                    <Box sx={{ p: 1.5, backgroundColor: '#fff', borderRadius: 1, border: '1px solid #e0e0e0' }}>
-                      <Typography variant="caption" sx={{ color: '#666' }}>Recipient Email</Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 500 }}>{formData.email || 'No email provided'}</Typography>
-                    </Box>
-                    {Object.entries(deliveryInfo.deliveryMethods?.email?.fields || {}).map(([field, config]: [string, any]) => (
-                      <TextField
-                        key={field}
-                        fullWidth
-                        label={config.label || field.charAt(0).toUpperCase() + field.slice(1)}
-                        type={config.type === 'Number' ? 'number' : 'text'}
-                        value={deliveryDetails[field] || ''}
-                        onChange={(e) => setDeliveryDetails({ ...deliveryDetails, [field]: e.target.value })}
-                        placeholder={config.placeholder || config.description || ''}
-                        required={config.required}
+                <FormControl component="fieldset">
+                  <FormLabel component="legend" sx={{ mb: 2, fontWeight: 600 }}>
+                    Delivery Method
+                  </FormLabel>
+                  <RadioGroup
+                    value={selectedDeliveryMethod}
+                    onChange={(e) => {
+                      setSelectedDeliveryMethod(e.target.value as 'email' | 'physical_mail' | 'pickup');
+                      setDeliveryDetails({});
+                    }}
+                  >
+                    {/* Email Option */}
+                    {deliveryInfo.deliveryMethods?.email?.enabled && (
+                      <FormControlLabel
+                        value="email"
+                        control={<Radio />}
+                        label={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <EmailIcon sx={{ fontSize: 20 }} />
+                            <Typography>Email</Typography>
+                          </Box>
+                        }
                       />
-                    ))}
-                  </Stack>
-                </CardContent>
-              </Card>
-            )}
+                    )}
 
-            {/* Physical Mail Details */}
-            {selectedDeliveryMethod === 'physical_mail' && (
-              <Card sx={{ backgroundColor: '#f9f9f9' }}>
-                <CardContent>
-                  <Typography variant="subtitle2" gutterBottom>
-                    Mailing Address & Shipping Info
-                  </Typography>
-                  <Stack spacing={2}>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-                      <Box sx={{ p: 1.5, backgroundColor: '#fff', borderRadius: 1, border: '1px solid #e0e0e0' }}>
-                        <Typography variant="caption" sx={{ color: '#666' }}>Carrier</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{deliveryInfo.deliveryMethods?.physical_mail?.carrier || 'Standard'}</Typography>
-                      </Box>
-                      <Box sx={{ p: 1.5, backgroundColor: '#fff', borderRadius: 1, border: '1px solid #e0e0e0' }}>
-                        <Typography variant="caption" sx={{ color: '#666' }}>Est. Delivery Days</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{deliveryInfo.deliveryMethods?.physical_mail?.estimatedDays || '5-7'} days</Typography>
-                      </Box>
-                    </Box>
-                    {Object.entries(deliveryInfo.deliveryMethods?.physical_mail?.fields || {}).map(([field, config]: [string, any]) => (
-                      <TextField
-                        key={field}
-                        fullWidth
-                        label={config.label || field.charAt(0).toUpperCase() + field.slice(1)}
-                        type={config.type === 'Number' ? 'number' : 'text'}
-                        multiline={field === 'mailingAddress' || field === 'address'}
-                        rows={field === 'mailingAddress' || field === 'address' ? 3 : 1}
-                        value={deliveryDetails[field] || ''}
-                        onChange={(e) => setDeliveryDetails({ ...deliveryDetails, [field]: e.target.value })}
+                    {/* Physical Mail Option */}
+                    {deliveryInfo.deliveryMethods?.physical_mail?.enabled && (
+                      <FormControlLabel
+                        value="physical_mail"
+                        control={<Radio />}
+                        label={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <ShippingIcon sx={{ fontSize: 20 }} />
+                            <Typography>Physical Mail</Typography>
+                          </Box>
+                        }
+                      />
+                    )}
+
+                    {/* Pickup Option */}
+                    {deliveryInfo.deliveryMethods?.pickup?.enabled && (
+                      <FormControlLabel
+                        value="pickup"
+                        control={<Radio />}
+                        label="Pickup"
+                      />
+                    )}
+                  </RadioGroup>
+                </FormControl>
+
+                {/* Email Details */}
+                {selectedDeliveryMethod === 'email' && (
+                  <Card sx={{ backgroundColor: '#f9f9f9' }}>
+                    <CardContent>
+                      <Typography variant="subtitle2" gutterBottom>
+                        Email Details
+                      </Typography>
+                      <Stack spacing={2}>
+                        <Box sx={{ p: 1.5, backgroundColor: '#fff', borderRadius: 1, border: '1px solid #e0e0e0' }}>
+                          <Typography variant="caption" sx={{ color: '#666' }}>Recipient Email</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 500 }}>{formData.email || 'No email provided'}</Typography>
+                        </Box>
+                        {Object.entries(deliveryInfo.deliveryMethods?.email?.fields || {}).map(([field, config]: [string, any]) => (
+                          <TextField
+                            key={field}
+                            fullWidth
+                            label={config.label || field.charAt(0).toUpperCase() + field.slice(1)}
+                            type={config.type === 'Number' ? 'number' : 'text'}
+                            value={deliveryDetails[field] || ''}
+                            onChange={(e) => setDeliveryDetails({ ...deliveryDetails, [field]: e.target.value })}
+                            placeholder={config.placeholder || config.description || ''}
+                            required={config.required}
+                          />
+                        ))}
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Physical Mail Details */}
+                {selectedDeliveryMethod === 'physical_mail' && (
+                  <Card sx={{ backgroundColor: '#f9f9f9' }}>
+                    <CardContent>
+                      <Typography variant="subtitle2" gutterBottom>
+                        Mailing Address & Shipping Info
+                      </Typography>
+                      <Stack spacing={2}>
+                        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+                          <Box sx={{ p: 1.5, backgroundColor: '#fff', borderRadius: 1, border: '1px solid #e0e0e0' }}>
+                            <Typography variant="caption" sx={{ color: '#666' }}>Carrier</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 500 }}>{deliveryInfo.deliveryMethods?.physical_mail?.carrier || 'Standard'}</Typography>
+                          </Box>
+                          <Box sx={{ p: 1.5, backgroundColor: '#fff', borderRadius: 1, border: '1px solid #e0e0e0' }}>
+                            <Typography variant="caption" sx={{ color: '#666' }}>Est. Delivery Days</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 500 }}>{deliveryInfo.deliveryMethods?.physical_mail?.estimatedDays || '5-7'} days</Typography>
+                          </Box>
+                        </Box>
+                        {Object.entries(deliveryInfo.deliveryMethods?.physical_mail?.fields || {}).map(([field, config]: [string, any]) => (
+                          <TextField
+                            key={field}
+                            fullWidth
+                            label={config.label || field.charAt(0).toUpperCase() + field.slice(1)}
+                            type={config.type === 'Number' ? 'number' : 'text'}
+                            multiline={field === 'mailingAddress' || field === 'address'}
+                            rows={field === 'mailingAddress' || field === 'address' ? 3 : 1}
+                            value={deliveryDetails[field] || ''}
+                            onChange={(e) => setDeliveryDetails({ ...deliveryDetails, [field]: e.target.value })}
                         placeholder={config.placeholder || config.description || ''}
                         required={config.required}
                       />
@@ -736,6 +735,8 @@ export const EnhancedServiceRequestPage: React.FC = () => {
                   </Stack>
                 </CardContent>
               </Card>
+            )}
+              </>
             )}
           </Stack>
         )}

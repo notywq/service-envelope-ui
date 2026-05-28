@@ -322,14 +322,15 @@ class ApiClient {
     return response.data;
   }
 
-  async submitDeliveryMethod(
+  async submitDeliveryDetails(
     requestId: string,
-    data: {
-      method: 'email' | 'physical_mail' | 'pickup';
-      details: Record<string, any>;
-    }
+    deliveryMethod: 'email' | 'physical_mail' | 'pickup',
+    deliveryDetails: Record<string, any>
   ) {
-    const response = await this.client.post(`/api/delivery/${requestId}/method`, data);
+    const response = await this.client.post(`/api/delivery/${requestId}/details`, {
+      deliveryMethod,
+      deliveryDetails,
+    });
     return response.data;
   }
 
@@ -340,6 +341,13 @@ class ApiClient {
 
   async getDeliveryHistory(requestId: string) {
     const response = await this.client.get(`/api/delivery-status/${requestId}/history`);
+    return response.data;
+  }
+
+  async updateDeliveryStatus(requestId: string, status: number | string) {
+    const response = await this.client.post(`/api/delivery-status/${requestId}`, {
+      status: typeof status === 'number' ? status : status,
+    });
     return response.data;
   }
 

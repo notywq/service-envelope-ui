@@ -59,8 +59,8 @@ interface HistoryEntry {
 
 const trackingMilestones = [
   { label: 'Processing', description: 'Document is being prepared' },
-  { label: 'In Transit', description: 'Package is on the way' },
-  { label: 'Out for Delivery', description: 'Final delivery in progress' },
+  { label: 'Ready to Deliver', description: 'Ready for shipment' },
+  { label: 'On the Way', description: 'Package in transit' },
   { label: 'Delivered', description: 'Document successfully delivered' },
 ];
 
@@ -72,6 +72,7 @@ export const DeliveryTrackingPage: React.FC = () => {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [simulatingDelivery, setSimulatingDelivery] = useState(false);
   const [error, setError] = useState('');
 
   const loadDeliveryData = async () => {
@@ -90,11 +91,26 @@ export const DeliveryTrackingPage: React.FC = () => {
         api.getDeliveryHistory(requestId).catch(() => []),
       ]);
 
+      console.log('📦 Raw API Response - Status:', statusData);
+      console.log('📦 Raw API Response - History:', historyData);
+
       if (statusData) {
-        setDeliveryStatus(statusData);
+        // Handle both direct currentMilestone and potentially nested/named status fields
+        const processedStatus = {
+          ...statusData,
+          currentMilestone:
+            statusData.currentMilestone ??
+            statusData.milestone ??
+            statusData.step ??
+            (typeof statusData.status === 'number' ? statusData.status : 0),
+        };
+        console.log('📦 Processed Status:', processedStatus);
+        setDeliveryStatus(processedStatus);
       }
       if (historyData) {
-        setHistory(Array.isArray(historyData) ? historyData : historyData.history || []);
+        const historyArray = Array.isArray(historyData) ? historyData : historyData.history || [];
+        console.log('📦 Setting history array:', historyArray);
+        setHistory(historyArray);
       }
 
       if (!statusData) {
@@ -117,6 +133,59 @@ export const DeliveryTrackingPage: React.FC = () => {
     setRefreshing(true);
     await loadDeliveryData();
     addNotification('Delivery information refreshed', 'success');
+  };
+
+  const handleSimulateDelivery = async () => {
+    if (!requestId || !deliveryStatus) return;
+
+    try {
+      setSimulatingDelivery(true);
+      const currentStatus = deliveryStatus.currentMilestone || 0;
+      const nextStatus = Math.min(currentStatus + 1, 3); // Max status is 3 (Delivered)
+
+      console.log(`🚚 Simulating delivery: ${currentStatus} → ${nextStatus}`);
+      console.log('Current delivery status:', deliveryStatus);
+
+      // Immediately update local state with next milestone (don't wait for backend)
+      setDeliveryStatus((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          currentMilestone: nextStatus,
+        };
+      });
+
+      try {
+        const response = await api.updateDeliveryStatus(requestId, nextStatus);
+        console.log('🚚 API Response after status update:', response);
+      } catch (err: any) {
+        console.warn('⚠️ API update failed, but keeping local state:', {
+          status: err.response?.status,
+          data: err.response?.data,
+        });
+        // Don't fail - we've already updated locally
+      }
+
+      addNotification(
+        nextStatus === 3
+          ? 'Delivery completed! 🎉'
+          : `Delivery status updated to step ${nextStatus + 1}`,
+        'success'
+      );
+    } catch (err: any) {
+      console.error('❌ Error simulating delivery:', {
+        status: err.response?.status,
+        statusText: err.response?.statusText,
+        data: err.response?.data,
+        message: err.message,
+      });
+      addNotification(
+        err.response?.data?.error || 'Failed to update delivery status',
+        'error'
+      );
+    } finally {
+      setSimulatingDelivery(false);
+    }
   };
 
   const getProgressPercent = (current: number | undefined, total: number | undefined) => {
@@ -168,15 +237,34 @@ export const DeliveryTrackingPage: React.FC = () => {
             Request ID: <code>{requestId}</code>
           </Typography>
         </Box>
-        <Button
-          variant="outlined"
-          startIcon={<RefreshIcon />}
-          onClick={handleRefresh}
-          disabled={refreshing}
-          sx={{ height: 'fit-content' }}
-        >
-          {refreshing ? 'Refreshing...' : 'Refresh'}
-        </Button>
+        <Stack direction="row" spacing={1} sx={{ height: 'fit-content' }}>
+          <Button
+            variant="contained"
+            color="success"
+            onClick={handleSimulateDelivery}
+            disabled={
+              simulatingDelivery ||
+              !deliveryStatus ||
+              (deliveryStatus.currentMilestone || 0) >= 3
+            }
+            sx={{ height: 'fit-content' }}
+          >
+            {simulatingDelivery
+              ? 'Simulating...'
+              : (deliveryStatus?.currentMilestone || 0) >= 3
+                ? 'Delivered'
+                : 'Simulate Next Step'}
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<RefreshIcon />}
+            onClick={handleRefresh}
+            disabled={refreshing}
+            sx={{ height: 'fit-content' }}
+          >
+            {refreshing ? 'Refreshing...' : 'Refresh'}
+          </Button>
+        </Stack>
       </Box>
 
       {/* EMAIL DELIVERY UI */}
@@ -457,13 +545,17 @@ export const DeliveryTrackingPage: React.FC = () => {
       )}
 
       {/* Delivery History */}
-      {history.length > 0 && (
-        <Card sx={{ mt: 4 }}>
-          <CardContent>
-            <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
-              Delivery History
-            </Typography>
+      <Card sx={{ mt: 4 }}>
+        <CardContent>
+          <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
+            Delivery History
+          </Typography>
 
+          {history.length === 0 ? (
+            <Typography variant="body2" color="textSecondary" sx={{ py: 2 }}>
+              No delivery history available yet. Track events will appear here as your delivery progresses.
+            </Typography>
+          ) : (
             <Table size="small">
               <TableBody>
                 {history.map((entry, index) => (
@@ -490,9 +582,9 @@ export const DeliveryTrackingPage: React.FC = () => {
                 ))}
               </TableBody>
             </Table>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
     </Box>
   );
 };

@@ -662,6 +662,7 @@ export const RequestDetailPage: React.FC = () => {
   const [error, setError] = useState('');
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [simulatingDelivery, setSimulatingDelivery] = useState(false);
 
   useEffect(() => {
     if (!requestId) {
@@ -723,6 +724,38 @@ export const RequestDetailPage: React.FC = () => {
     } finally {
       setActionLoading(false);
       setCancelDialogOpen(false);
+    }
+  };
+
+  const handleSimulateDelivery = async () => {
+    if (!requestId) return;
+    try {
+      setSimulatingDelivery(true);
+      // Get current status and increment (0-3)
+      const currentStatus = 0; // Start from step 0
+      const nextStatus = Math.min(currentStatus + 1, 3); // Max status is 3 (Delivered)
+
+      console.log(`Simulating delivery: ${currentStatus} → ${nextStatus}`);
+
+      await api.updateDeliveryStatus(requestId, nextStatus);
+
+      addNotification(
+        nextStatus === 3
+          ? 'Delivery completed! 🎉'
+          : `Delivery status updated to step ${nextStatus + 1}`,
+        'success'
+      );
+
+      // Reload request data
+      handleRefresh();
+    } catch (err: any) {
+      console.error('Error simulating delivery:', err);
+      addNotification(
+        err.response?.data?.error || 'Failed to update delivery status',
+        'error'
+      );
+    } finally {
+      setSimulatingDelivery(false);
     }
   };
 
@@ -792,6 +825,21 @@ export const RequestDetailPage: React.FC = () => {
               Resume
             </Button>
           )}
+          <Button
+            variant="contained"
+            color="success"
+            onClick={handleSimulateDelivery}
+            disabled={simulatingDelivery || request.status === 'completed'}
+            sx={{
+              opacity: request.status === 'completed' ? 0.5 : 1,
+            }}
+          >
+            {simulatingDelivery
+              ? 'Simulating...'
+              : request.status === 'completed'
+                ? 'Delivery Complete'
+                : 'Simulate Delivery'}
+          </Button>
           <Button
             variant="outlined"
             color="error"
