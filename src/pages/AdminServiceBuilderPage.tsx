@@ -1,6 +1,7 @@
 /**
  * Admin Service Builder Page
  * Allows admins to create new service definitions using YAML
+ * Now with JSON Schema validation integrated
  */
 
 import React, { useState, useEffect } from 'react';
@@ -47,6 +48,7 @@ import {
   CheckCircle as CheckCircleIcon,
   Info as InfoIcon,
   Warning as WarningIcon,
+  Verified as VerifiedIcon,
 } from '@mui/icons-material';
 import YAML from 'js-yaml';
 import { api } from '../services/api';
@@ -54,7 +56,7 @@ import { useNotification } from '../hooks/useNotification';
 import { useAuth } from '../hooks/useAuth';
 import { AdminLearningGuide } from '../components/AdminLearningGuide';
 import { EnhancedEmailTemplateManager } from '../components/EnhancedEmailTemplateManager';
-import { validateServiceDefinition } from '../utils/validateServiceDefinition';
+import { schemaValidator } from '../utils/schemaValidator';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -78,7 +80,7 @@ export const AdminServiceBuilderPage: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
   const [serviceName, setServiceName] = useState('');
   const [yamlContent, setYamlContent] = useState('');
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [schemaValidationErrors, setSchemaValidationErrors] = useState<any[]>([]);
   const [parsedYaml, setParsedYaml] = useState<any>(null);
   const [isValid, setIsValid] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -89,10 +91,35 @@ export const AdminServiceBuilderPage: React.FC = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [serviceToDelete, setServiceToDelete] = useState<any>(null);
   const [deleting, setDeleting] = useState(false);
+  
+  // Schema-related state
+  const [schemaLoading, setSchemaLoading] = useState(true);
+  const [schemaVersion, setSchemaVersion] = useState<string | null>(null);
+  const [schemaError, setSchemaError] = useState<string>('');
 
   useEffect(() => {
-    const loadServices = async () => {
+    const loadSchemaAndServices = async () => {
       try {
+        // Load JSON Schema
+        setSchemaLoading(true);
+        setSchemaError('');
+        
+        try {
+          const schemaData = await api.getSchema();
+          schemaValidator.setSchema(schemaData.schema, schemaData.version);
+          setSchemaVersion(schemaData.version);
+          console.log('✅ Schema loaded:', {
+            version: schemaData.version,
+            timestamp: schemaData.timestamp,
+          });
+          addNotification(`Schema v${schemaData.version} loaded`, 'success');
+        } catch (schemaErr: any) {
+          console.error('⚠️ Error loading schema:', schemaErr.message);
+          setSchemaError('Could not load JSON Schema from server');
+          addNotification('Schema not available - using local validation only', 'warning');
+        }
+
+        // Load services
         setLoadingServices(true);
         const response = await api.getServices();
         setServices(response.services || []);
@@ -100,30 +127,84 @@ export const AdminServiceBuilderPage: React.FC = () => {
         addNotification('Failed to load services', 'error');
       } finally {
         setLoadingServices(false);
+        setSchemaLoading(false);
       }
     };
     
-    loadServices();
-  }, []);
+    loadSchemaAndServices();
+  }, [addNotification]);
+
+  const formatErrorPath = (path: string): string => {
+    // Convert "/envelopes/request/parameters/firstName" to "Request Parameters > First Name"
+    if (!path || path === '/') return 'Root';
+    
+    const parts = path.split('/').filter(Boolean);
+    return parts
+      .map((part, idx) => {
+        // Capitalize and add spaces
+        const formatted = part
+          .replace(/([A-Z])/g, ' $1') // Add space before capitals
+          .replace(/_/g, ' ') // Replace underscores with spaces
+          .trim()
+          .split(' ')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+          .join(' ');
+        
+        // Add separator for visual hierarchy
+        return idx > 0 ? formatted : formatted;
+      })
+      .join(' → ');
+  };
+
+  const organizeErrorsBySection = (errors: any[]): Map<string, any[]> => {
+    const organized = new Map<string, any[]>();
+    
+    errors.forEach(err => {
+      const pathParts = err.path.split('/').filter(Boolean);
+      const section = pathParts[0] || 'General';
+      
+      if (!organized.has(section)) {
+        organized.set(section, []);
+      }
+      organized.get(section)!.push(err);
+    });
+    
+    return organized;
+  };
 
   const validateAndParse = (yaml: string) => {
     try {
       const parsed = YAML.load(yaml) as any;
       setParsedYaml(parsed);
 
-      // Use the comprehensive validator from SERVICE_DEFINITION_RULES.yaml
-      const result = validateServiceDefinition(parsed);
+      let isSchemaValid = true;
+      let schemaErrors: any[] = [];
+      
+      if (schemaValidator.getSchema()) {
+        // Validate against JSON Schema (source of truth)
+        const schemaValidationResult = schemaValidator.validate(parsed);
+        isSchemaValid = schemaValidationResult.isValid;
+        schemaErrors = schemaValidationResult.errors;
+        
+        console.log('📋 Schema Validation Result:', {
+          isValid: isSchemaValid,
+          errorCount: schemaErrors.length,
+          schemaVersion: schemaValidationResult.schemaVersion,
+        });
+      } else {
+        // Schema not available - log warning but allow continuation
+        console.warn('⚠️ Schema not available, skipping JSON schema validation');
+      }
 
-      // Convert validation result to string array for display
-      const errorMessages = result.errors.map(
-        (err) => `[${err.section}] ${err.field}: ${err.message}`
-      );
-
-      setValidationErrors(errorMessages);
-      setIsValid(result.isValid);
+      setSchemaValidationErrors(schemaErrors);
+      setIsValid(isSchemaValid);
     } catch (err: any) {
       const errorMsg = err.message || 'Invalid YAML syntax';
-      setValidationErrors([errorMsg]);
+      setSchemaValidationErrors([{
+        path: '/',
+        message: errorMsg,
+        keyword: 'parse_error',
+      }]);
       setIsValid(false);
       setParsedYaml(null);
     }
@@ -135,7 +216,7 @@ export const AdminServiceBuilderPage: React.FC = () => {
     if (content.trim()) {
       validateAndParse(content);
     } else {
-      setValidationErrors([]);
+      setSchemaValidationErrors([]);
       setIsValid(false);
       setParsedYaml(null);
     }
@@ -178,14 +259,18 @@ export const AdminServiceBuilderPage: React.FC = () => {
         type: parsedYaml.type,
         serviceId: parsedYaml.serviceId,
         initiator: user.email,
+        schemaVersion: schemaValidator.getSchemaVersion() || undefined,
+        validatedAt: new Date().toISOString(),
       };
 
       if (isEditingExisting && selectedServiceId) {
         await api.updateService(selectedServiceId, serviceData);
         addNotification(`Service "${serviceName}" updated successfully!`, 'success');
+        console.log('✅ Service updated with schema version:', schemaValidator.getSchemaVersion());
       } else {
         await api.createService(serviceData);
         addNotification(`Service "${serviceName}" created successfully!`, 'success');
+        console.log('✅ Service created with schema version:', schemaValidator.getSchemaVersion());
       }
       
       // Reload services list
@@ -195,7 +280,7 @@ export const AdminServiceBuilderPage: React.FC = () => {
       setServiceName('');
       setYamlContent('');
       setParsedYaml(null);
-      setValidationErrors([]);
+      setSchemaValidationErrors([]);
       setSelectedServiceId('');
       setIsEditingExisting(false);
     } catch (err: any) {
@@ -224,7 +309,7 @@ export const AdminServiceBuilderPage: React.FC = () => {
     setServiceName('');
     setYamlContent('');
     setParsedYaml(null);
-    setValidationErrors([]);
+    setSchemaValidationErrors([]);
     setSelectedServiceId('');
     setIsEditingExisting(false);
   };
@@ -321,12 +406,47 @@ envelopes:
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       {/* Header */}
       <Box>
-        <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
-          Service Builder
-        </Typography>
-        <Typography variant="body2" color="textSecondary">
-          Create new service definitions using YAML format
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <Box>
+            <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
+              Service Builder
+            </Typography>
+            <Typography variant="body2" color="textSecondary">
+              Create new service definitions using YAML format
+            </Typography>
+          </Box>
+          
+          {/* Schema Status */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {schemaLoading ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <CircularProgress size={20} />
+                <Typography variant="caption">Loading Schema...</Typography>
+              </Box>
+            ) : schemaError ? (
+              <Tooltip title={schemaError}>
+                <Chip
+                  icon={<WarningIcon />}
+                  label="Schema: Local Only"
+                  size="small"
+                  color="warning"
+                  variant="outlined"
+                />
+              </Tooltip>
+            ) : (
+              <Tooltip title={`Using JSON Schema v${schemaVersion}`}>
+                <Chip
+                  icon={<VerifiedIcon />}
+                  label={`Schema v${schemaVersion}`}
+                  size="small"
+                  color="success"
+                  variant="filled"
+                  sx={{ color: 'white' }}
+                />
+              </Tooltip>
+            )}
+          </Box>
+        </Box>
       </Box>
 
       {/* Tabs */}
@@ -448,24 +568,63 @@ envelopes:
 
             {/* Validation Results */}
             {yamlContent && (
-              <Box>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {isValid ? (
                   <Alert icon={<CheckIcon />} severity="success">
                     ✓ YAML is valid and ready to save
                   </Alert>
                 ) : (
-                  <Alert icon={<ErrorIcon />} severity="error" sx={{ textAlign: 'left' }}>
-                    <Stack spacing={1} sx={{ textAlign: 'left' }}>
-                      <Typography variant="subtitle2" sx={{ textAlign: 'left' }}>Validation Errors:</Typography>
-                      <Stack component="ul" spacing={0.5} sx={{ textAlign: 'left', pl: 2 }}>
-                        {validationErrors.map((error, idx) => (
-                          <Typography component="li" key={idx} variant="body2" sx={{ textAlign: 'left' }}>
-                            {error}
+                  <>
+                    {/* Schema Validation Errors */}
+                    {schemaValidationErrors.length > 0 && (
+                      <Alert icon={<ErrorIcon />} severity="error" sx={{ textAlign: 'left' }}>
+                        <Stack spacing={2} sx={{ textAlign: 'left' }}>
+                          <Typography variant="subtitle2" sx={{ textAlign: 'left', fontWeight: 600 }}>
+                            Validation Errors ({schemaValidationErrors.length}):
                           </Typography>
-                        ))}
-                      </Stack>
-                    </Stack>
-                  </Alert>
+                          
+                          {Array.from(organizeErrorsBySection(schemaValidationErrors)).map(([section, sectionErrors]) => (
+                            <Box key={section}>
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  fontWeight: 600,
+                                  color: 'error.dark',
+                                  mb: 1,
+                                  fontSize: '0.9rem',
+                                }}
+                              >
+                                📍 {section.charAt(0).toUpperCase() + section.slice(1)}
+                              </Typography>
+                              <Stack component="ul" spacing={0.75} sx={{ textAlign: 'left', pl: 3, m: 0 }}>
+                                {sectionErrors.map((error, idx) => (
+                                  <Box
+                                    component="li"
+                                    key={idx}
+                                    sx={{
+                                      pb: 0.5,
+                                      borderLeft: '2px solid #d32f2f',
+                                      pl: 1.5,
+                                    }}
+                                  >
+                                    <Typography variant="body2" sx={{ textAlign: 'left', fontFamily: 'monospace' }}>
+                                      <strong>{formatErrorPath(error.path)}</strong>
+                                    </Typography>
+                                    <Typography
+                                      variant="caption"
+                                      sx={{ textAlign: 'left', color: '#666', display: 'block', mt: 0.25 }}
+                                    >
+                                      {error.message}
+                                    </Typography>
+                                  </Box>
+                                ))}
+                              </Stack>
+                            </Box>
+                          ))}
+                        </Stack>
+                      </Alert>
+                    )}
+                  </>
                 )}
               </Box>
             )}

@@ -351,6 +351,28 @@ class ApiClient {
     return response.data;
   }
 
+  // ========== SCHEMA ENDPOINTS ==========
+
+  async getSchema() {
+    const response = await this.client.get('/api/admin/schema');
+    return response.data;
+  }
+
+  async getSchemaVersions() {
+    const response = await this.client.get('/api/admin/schema/versions');
+    return response.data;
+  }
+
+  async getLatestSchemaVersion() {
+    const response = await this.client.get('/api/admin/schema/versions/latest');
+    return response.data;
+  }
+
+  async getSchemaVersion(version: string) {
+    const response = await this.client.get(`/api/admin/schema/versions/${version}`);
+    return response.data;
+  }
+
   // ========== HEALTH CHECK ==========
 
   async health() {

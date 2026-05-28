@@ -28,13 +28,13 @@ import { NotificationDisplay } from './components/NotificationDisplay';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { RequestDetailPage } from './pages/RequestDetailPage';
-import { EnhancedServiceRequestPage as ServiceBuilderPage } from './pages/EnhancedServiceRequestPage';
+import { ServiceBrowsePage } from './pages/ServiceBrowsePage';
+import { EnhancedServiceRequestPage } from './pages/EnhancedServiceRequestPage';
 import { PaymentPage } from './pages/PaymentPage';
 import { AdminPage } from './pages/AdminPage';
 import { FeedbackPage } from './pages/FeedbackPage';
 import { ApprovalPage } from './pages/ApprovalPage';
 import { DeliveryTrackingPage } from './pages/DeliveryTrackingPage';
-import { EnhancedServiceRequestPage } from './pages/EnhancedServiceRequestPage';
 import './App.css';
 
 // Protected Route Component
@@ -217,7 +217,7 @@ function AppInner() {
               path="/services"
               element={
                 <ProtectedRoute>
-                  <ServiceBuilderPage />
+                  <ServiceBrowsePage />
                 </ProtectedRoute>
               }
             />
