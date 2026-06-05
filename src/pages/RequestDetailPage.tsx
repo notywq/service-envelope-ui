@@ -737,7 +737,7 @@ export const RequestDetailPage: React.FC = () => {
 
       console.log(`Simulating delivery: ${currentStatus} → ${nextStatus}`);
 
-      await api.updateDeliveryStatus(requestId, nextStatus);
+      await api.updateDeliveryStatus(requestId, { status: nextStatus });
 
       addNotification(
         nextStatus === 3

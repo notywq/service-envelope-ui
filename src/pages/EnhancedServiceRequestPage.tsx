@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
   Button,
@@ -104,6 +104,20 @@ export const EnhancedServiceRequestPage: React.FC = () => {
 
     loadServices();
   }, [addNotification]);
+
+  // If a serviceId is provided via query param, pre-select that service once services load
+  const location = useLocation();
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const serviceId = params.get('serviceId');
+    if (serviceId && services.length > 0) {
+      const matched = services.find((s) => s.serviceId === serviceId || s.id === serviceId);
+      if (matched) {
+        // use a small timeout to allow services parsing to finish
+        setTimeout(() => handleServiceChange(matched), 0);
+      }
+    }
+  }, [location.search, services]);
 
   const selectedService = services.find((s) => s.serviceId === formData.service);
 
@@ -265,22 +279,23 @@ export const EnhancedServiceRequestPage: React.FC = () => {
 
       // Step 1: Submit request with parameters (NO delivery method)
       console.log('📋 Step 1: Submitting request with parameters...');
-      const result = await api.submitServiceRequest(formData.service, parameters);
-      console.log('✅ Request submitted:', result);
-      setSubmittedRequestId(result.id);
+      const resultAny: any = await api.submitServiceRequest(formData.service, parameters, 'Service Envelope Web UI');
+      console.log('✅ Request submitted:', resultAny);
+      const requestId: string | undefined =
+        resultAny?.requestId || resultAny?.requestId === 0 ? resultAny.requestId : resultAny?.id || resultAny?.request?.id;
+      setSubmittedRequestId(requestId || '');
       
       // Step 2: Submit delivery details (if available)
-      if (selectedDeliveryMethod && (Object.keys(deliveryInfo.deliveryMethods || {}).length || 0) > 0) {
+      if (requestId && selectedDeliveryMethod && (Object.keys(deliveryInfo.deliveryMethods || {}).length || 0) > 0) {
         try {
           console.log('📦 Step 2: Submitting delivery details...');
           console.log('Delivery payload:', {
-            requestId: result.id,
+            requestId,
             deliveryMethod: selectedDeliveryMethod,
             deliveryDetails,
           });
-          
           await api.submitDeliveryDetails(
-            result.id,
+            requestId,
             selectedDeliveryMethod as 'email' | 'physical_mail' | 'pickup',
             deliveryDetails
           );
@@ -306,10 +321,25 @@ export const EnhancedServiceRequestPage: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Error submitting request:', err);
-      addNotification(
-        err.response?.data?.error || 'Failed to submit request',
-        'error'
-      );
+      const resp = err.response?.data;
+      if (resp) {
+        const messages: string[] = [];
+        if (resp.error) messages.push(resp.error);
+        if (Array.isArray(resp.validationErrors) && resp.validationErrors.length) {
+          messages.push(...resp.validationErrors);
+        }
+        if (Array.isArray(resp.validationDetails) && resp.validationDetails.length) {
+          messages.push(
+            ...resp.validationDetails.map((d: any) => d.message || `${d.field || 'field'}: ${d.rule || ''}`)
+          );
+        }
+
+        const messageToShow = messages.length ? messages.join(' — ') : (resp.error || 'Failed to submit request');
+        setError(messageToShow);
+        addNotification(messageToShow, 'error');
+      } else {
+        addNotification('Failed to submit request', 'error');
+      }
     } finally {
       setSubmitLoading(false);
     }
@@ -383,6 +413,11 @@ export const EnhancedServiceRequestPage: React.FC = () => {
         <Typography color="textSecondary">
           Fill out the form below to submit a new service request
         </Typography>
+        {error && (
+          <Box sx={{ mt: 2 }}>
+            <Alert severity="error">{error}</Alert>
+          </Box>
+        )}
       </Box>
 
       {error && <Alert severity="error">{error}</Alert>}

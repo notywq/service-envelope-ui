@@ -23,6 +23,11 @@ import {
   TableBody,
   TableCell,
   TableRow,
+  FormControl,
+  RadioGroup,
+  Radio,
+  FormControlLabel,
+  TextField,
 } from '@mui/material';
 import {
   Email as EmailIcon,
@@ -39,7 +44,7 @@ import { useNotification } from '../hooks/useNotification';
 
 interface DeliveryStatus {
   requestId: string;
-  deliveryType: 'EMAIL' | 'PHYSICAL';
+  deliveryType: 'EMAIL' | 'PHYSICAL' | 'PICKUP';
   status: string;
   currentMilestone?: number;
   totalMilestones?: number;
@@ -70,6 +75,7 @@ export const DeliveryTrackingPage: React.FC = () => {
 
   const [deliveryStatus, setDeliveryStatus] = useState<DeliveryStatus | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [methodInfo, setMethodInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [simulatingDelivery, setSimulatingDelivery] = useState(false);
@@ -86,7 +92,9 @@ export const DeliveryTrackingPage: React.FC = () => {
       if (!refreshing) setLoading(true);
       setError('');
 
-      const [statusData, historyData] = await Promise.all([
+      // Fetch delivery method separately (email / physical_mail / pickup)
+      const [methodData, statusData, historyData] = await Promise.all([
+        api.getDeliveryMethod(requestId).catch(() => null),
         api.getDeliveryStatus(requestId).catch(() => null),
         api.getDeliveryHistory(requestId).catch(() => []),
       ]);
@@ -94,6 +102,10 @@ export const DeliveryTrackingPage: React.FC = () => {
       console.log('📦 Raw API Response - Status:', statusData);
       console.log('📦 Raw API Response - History:', historyData);
 
+      // Save method info for selection UI
+      setMethodInfo(methodData || null);
+
+      // Ensure deliveryType is known: prefer method endpoint, else fallback to status payload
       if (statusData) {
         // Handle both direct currentMilestone and potentially nested/named status fields
         const processedStatus = {
@@ -104,8 +116,18 @@ export const DeliveryTrackingPage: React.FC = () => {
             statusData.step ??
             (typeof statusData.status === 'number' ? statusData.status : 0),
         };
+        // Attach deliveryType from methodData if present
+        if (methodData && methodData.deliveryMethod) {
+          const method = (methodData.deliveryMethod || methodData.method || methodData.type || '').toString();
+          processedStatus.deliveryType =
+            method.toLowerCase() === 'email' ? 'EMAIL' : method.toLowerCase() === 'pickup' ? 'PICKUP' : 'PHYSICAL';
+        } else if (processedStatus.deliveryType) {
+          // normalize
+          processedStatus.deliveryType = processedStatus.deliveryType === 'EMAIL' ? 'EMAIL' : processedStatus.deliveryType === 'PICKUP' ? 'PICKUP' : 'PHYSICAL';
+        }
+
         console.log('📦 Processed Status:', processedStatus);
-        setDeliveryStatus(processedStatus);
+        setDeliveryStatus(processedStatus as DeliveryStatus);
       }
       if (historyData) {
         const historyArray = Array.isArray(historyData) ? historyData : historyData.history || [];
@@ -129,6 +151,26 @@ export const DeliveryTrackingPage: React.FC = () => {
     loadDeliveryData();
   }, [requestId]);
 
+  // Poll current status every 10s while not completed
+  useEffect(() => {
+    if (!requestId) return;
+    let timer: any = null;
+    const shouldPoll = deliveryStatus && deliveryStatus.status !== 'completed' && deliveryStatus.status !== 'Delivered';
+    if (shouldPoll) {
+      timer = setInterval(async () => {
+        try {
+          const fresh = await api.getDeliveryStatus(requestId);
+          if (fresh) {
+            setDeliveryStatus((prev) => ({ ...(prev || {}), ...fresh } as DeliveryStatus));
+          }
+        } catch (e) {
+          // ignore
+        }
+      }, 10000);
+    }
+    return () => { if (timer) clearInterval(timer); };
+  }, [requestId, deliveryStatus]);
+
   const handleRefresh = async () => {
     setRefreshing(true);
     await loadDeliveryData();
@@ -138,53 +180,70 @@ export const DeliveryTrackingPage: React.FC = () => {
   const handleSimulateDelivery = async () => {
     if (!requestId || !deliveryStatus) return;
 
-    try {
-      setSimulatingDelivery(true);
-      const currentStatus = deliveryStatus.currentMilestone || 0;
-      const nextStatus = Math.min(currentStatus + 1, 3); // Max status is 3 (Delivered)
-
-      console.log(`🚚 Simulating delivery: ${currentStatus} → ${nextStatus}`);
-      console.log('Current delivery status:', deliveryStatus);
-
-      // Immediately update local state with next milestone (don't wait for backend)
-      setDeliveryStatus((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          currentMilestone: nextStatus,
-        };
-      });
-
       try {
-        const response = await api.updateDeliveryStatus(requestId, nextStatus);
-        console.log('🚚 API Response after status update:', response);
-      } catch (err: any) {
-        console.warn('⚠️ API update failed, but keeping local state:', {
-          status: err.response?.status,
-          data: err.response?.data,
-        });
-        // Don't fail - we've already updated locally
-      }
+        setSimulatingDelivery(true);
+        const currentStatus = deliveryStatus.currentMilestone || 0;
+        const nextStatus = Math.min(currentStatus + 1, 4); // allow up to 4 for pickup
 
-      addNotification(
-        nextStatus === 3
-          ? 'Delivery completed! 🎉'
-          : `Delivery status updated to step ${nextStatus + 1}`,
-        'success'
-      );
+        console.log(`🚚 Simulating delivery: ${currentStatus} → ${nextStatus}`);
+
+        // Optimistically update UI
+        setDeliveryStatus((prev) => (prev ? { ...prev, currentMilestone: nextStatus } : prev));
+
+        try {
+          await api.updateDeliveryStatus(requestId, { status: nextStatus });
+        } catch (err: any) {
+          console.warn('⚠️ API update failed, but keeping local state:', {
+            status: err.response?.status,
+            data: err.response?.data,
+          });
+        }
+
+        addNotification(
+          nextStatus === 3 || nextStatus === 4
+            ? 'Delivery completed! 🎉'
+            : `Delivery status updated to step ${nextStatus + 1}`,
+          'success'
+        );
+      } catch (err: any) {
+        console.error('❌ Error simulating delivery:', err);
+        addNotification(
+          err.response?.data?.error || 'Failed to update delivery status',
+          'error'
+        );
+      } finally {
+        setSimulatingDelivery(false);
+      }
+  };
+
+  // Helper to push status with optional payload
+  const pushStatus = async (code: number | string, opts?: { notes?: string; location?: string; trackingId?: string }) => {
+    if (!requestId) return;
+    try {
+      setLoading(true);
+      await api.updateDeliveryStatus(requestId, { status: code, notes: opts?.notes, location: opts?.location, trackingId: opts?.trackingId });
+      await loadDeliveryData();
+      addNotification('Delivery status updated', 'success');
     } catch (err: any) {
-      console.error('❌ Error simulating delivery:', {
-        status: err.response?.status,
-        statusText: err.response?.statusText,
-        data: err.response?.data,
-        message: err.message,
-      });
-      addNotification(
-        err.response?.data?.error || 'Failed to update delivery status',
-        'error'
-      );
+      console.error('Failed to push status:', err);
+      addNotification(err.response?.data?.error || 'Failed to update delivery status', 'error');
     } finally {
-      setSimulatingDelivery(false);
+      setLoading(false);
+    }
+  };
+
+  const handleSelectMethod = async (method: string, details: Record<string, any>) => {
+    if (!requestId) return;
+    try {
+      setLoading(true);
+      await api.postDeliveryMethod(requestId, { method, details });
+      await loadDeliveryData();
+      addNotification('Delivery method selected', 'success');
+    } catch (err: any) {
+      console.error('Failed to select delivery method:', err);
+      addNotification(err.response?.data?.error || 'Failed to set delivery method', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -223,7 +282,16 @@ export const DeliveryTrackingPage: React.FC = () => {
   }
 
   const isEmailDelivery = deliveryStatus.deliveryType === 'EMAIL';
+  const isPickup = deliveryStatus.deliveryType === 'PICKUP';
+  const isPhysical = deliveryStatus.deliveryType === 'PHYSICAL';
   const isDelivered = deliveryStatus.status === 'delivered' || deliveryStatus.status === 'Delivered';
+
+  // Selection form state
+  const [selectedMethod, setSelectedMethod] = useState<string>('');
+  const [methodDetails, setMethodDetails] = useState<Record<string, any>>({});
+  const [stepLocation, setStepLocation] = useState('');
+  const [stepTrackingId, setStepTrackingId] = useState('');
+  const [stepNotes, setStepNotes] = useState('');
 
   return (
     <Box sx={{ maxWidth: 1000, mx: 'auto', py: 4, px: 2 }}>
@@ -266,6 +334,57 @@ export const DeliveryTrackingPage: React.FC = () => {
           </Button>
         </Stack>
       </Box>
+      {/* Method selection when none chosen yet */}
+      {methodInfo && !methodInfo.deliveryMethod && (
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>Select Delivery Method</Typography>
+            <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+              Choose how you would like to receive your documents.
+            </Typography>
+
+            <FormControl component="fieldset">
+              <RadioGroup value={selectedMethod} onChange={(e) => setSelectedMethod(e.target.value)}>
+                {methodInfo.availableMethods?.email?.enabled && (
+                  <FormControlLabel value="email" control={<Radio />} label="Email" />
+                )}
+                {methodInfo.availableMethods?.physical_mail?.enabled && (
+                  <FormControlLabel value="physical_mail" control={<Radio />} label="Physical Mail" />
+                )}
+                {methodInfo.availableMethods?.pickup?.enabled && (
+                  <FormControlLabel value="pickup" control={<Radio />} label="Pickup" />
+                )}
+              </RadioGroup>
+            </FormControl>
+
+            {selectedMethod === 'email' && (
+              <Box sx={{ mt: 2 }}>
+                <TextField fullWidth label="Recipient Email" value={methodDetails.recipient || methodInfo?.details?.recipient || ''} onChange={(e) => setMethodDetails({ ...methodDetails, recipient: e.target.value })} sx={{ mb: 2 }} />
+                <TextField fullWidth label="Subject" value={methodDetails.subject || methodInfo?.details?.subject || ''} onChange={(e) => setMethodDetails({ ...methodDetails, subject: e.target.value })} />
+              </Box>
+            )}
+
+            {selectedMethod === 'physical_mail' && (
+              <Box sx={{ mt: 2 }}>
+                <TextField fullWidth multiline minRows={3} label="Mailing Address" value={methodDetails.mailingAddress || ''} onChange={(e) => setMethodDetails({ ...methodDetails, mailingAddress: e.target.value })} />
+              </Box>
+            )}
+
+            {selectedMethod === 'pickup' && (
+              <Box sx={{ mt: 2 }}>
+                <Alert severity="info">Pickup will be available at the configured location. No additional info required.</Alert>
+              </Box>
+            )}
+
+            <Stack direction="row" spacing={2} sx={{ mt: 3 }}>
+              <Button variant="outlined" onClick={() => { setSelectedMethod(''); setMethodDetails({}); }}>Cancel</Button>
+              <Button variant="contained" disabled={!selectedMethod} onClick={() => handleSelectMethod(selectedMethod, methodDetails)}>
+                Confirm Method
+              </Button>
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
 
       {/* EMAIL DELIVERY UI */}
       {isEmailDelivery && (
@@ -380,9 +499,51 @@ export const DeliveryTrackingPage: React.FC = () => {
           )}
         </Stack>
       )}
+      {/* PICKUP UI */}
+      {isPickup && (
+        <Stack spacing={3}>
+          <Card sx={{ boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)' }}>
+            <CardContent>
+              <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
+                Pickup Information
+              </Typography>
+              <Stack spacing={1}>
+                {deliveryStatus.recipient && (
+                  <Box>
+                    <Typography variant="caption" color="textSecondary">Contact</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{deliveryStatus.recipient}</Typography>
+                  </Box>
+                )}
+                {/* pickup-specific details may be in deliveryStatus.details */}
+                {(deliveryStatus as any).details?.location && (
+                  <Box>
+                    <Typography variant="caption" color="textSecondary">Pickup Location</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{(deliveryStatus as any).details.location}</Typography>
+                  </Box>
+                )}
+                {(deliveryStatus as any).details?.hoursOfOperation && (
+                  <Box>
+                    <Typography variant="caption" color="textSecondary">Hours</Typography>
+                    <Typography variant="body2">{(deliveryStatus as any).details.hoursOfOperation}</Typography>
+                  </Box>
+                )}
+                {(deliveryStatus as any).details?.requiresIDVerification && (
+                  <Alert severity="info">ID verification required at pickup.</Alert>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+
+          {!isDelivered && (
+            <Alert icon={<InfoIcon />} severity="info">
+              Your package is ready for pickup. Please follow the pickup instructions above.
+            </Alert>
+          )}
+        </Stack>
+      )}
 
       {/* PHYSICAL DELIVERY UI */}
-      {!isEmailDelivery && (
+      {isPhysical && (
         <Stack spacing={3}>
           {/* Tracking Progress Card */}
           <Card sx={{ boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)' }}>
@@ -541,6 +702,27 @@ export const DeliveryTrackingPage: React.FC = () => {
               Your package is on its way. Track the progress above for real-time updates.
             </Alert>
           )}
+
+          {/* Physical action controls */}
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Actions</Typography>
+            <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+              <TextField size="small" label="Location" value={stepLocation} onChange={(e) => setStepLocation(e.target.value)} />
+              <TextField size="small" label="Tracking ID" value={stepTrackingId} onChange={(e) => setStepTrackingId(e.target.value)} />
+              <TextField size="small" label="Notes" value={stepNotes} onChange={(e) => setStepNotes(e.target.value)} />
+              <Button variant="contained" onClick={() => {
+                const current = deliveryStatus.currentMilestone || 0;
+                const next = Math.min(current + 1, 3);
+                const opts: any = {};
+                if (next === 2 && stepLocation) opts.location = stepLocation;
+                if (next === 3 && stepTrackingId) opts.trackingId = stepTrackingId;
+                if (stepNotes) opts.notes = stepNotes;
+                pushStatus(next, opts);
+              }}>
+                Advance Step
+              </Button>
+            </Stack>
+          </Box>
         </Stack>
       )}
 

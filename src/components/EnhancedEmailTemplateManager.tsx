@@ -25,6 +25,13 @@ import {
   Chip,
   IconButton,
   Typography,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Switch,
+  Select,
+  MenuItem,
+  Tooltip,
   Stack,
   Tabs,
   Tab,
@@ -40,12 +47,18 @@ import {
   Add as AddIcon,
   ContentCopy as CopyIcon,
 } from '@mui/icons-material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+// Using plain text '?' for help icons to avoid extra icon dependency
 import { api } from '../services/api';
 import { useNotification } from '../hooks/useNotification';
 import type { EmailTemplate } from '../types';
 
 interface EditingTemplate extends EmailTemplate {
   isNew?: boolean;
+  templateScope?: 'generic' | 'envelope' | 'service' | string;
+  eventKey?: string;
+  serviceType?: string | null;
+  isActive?: boolean;
 }
 
 interface TabPanelProps {
@@ -108,6 +121,8 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
     }
   };
 
+  // Phase 2 spec content removed from UI
+
   const handleNewTemplate = () => {
     setEditingTemplate({
       id: '',
@@ -117,6 +132,10 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
       description: '',
       envelopeType: 'request',
       phase: 'start',
+      templateScope: 'envelope',
+      eventKey: '',
+      serviceType: '',
+      isActive: true,
       isNew: true,
     });
     setTabValue(0);
@@ -128,6 +147,10 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
       ...template,
       envelopeType: template.envelopeType || 'request',
       phase: template.phase || 'start',
+      templateScope: (template as any).templateScope || (template.envelopeType ? 'envelope' : 'generic'),
+      eventKey: (template as any).eventKey || template.phase || '',
+      serviceType: (template as any).serviceType || '',
+      isActive: (template as any).isActive !== false,
       isNew: false,
     });
     setTabValue(0);
@@ -164,13 +187,17 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
 
       if (editingTemplate.isNew) {
         await api.createEmailTemplate({
-          id: editingTemplate.name.toLowerCase().replace(/\s+/g, '-'),
+          id: (editingTemplate.id && editingTemplate.id.trim()) ? editingTemplate.id : editingTemplate.name.toLowerCase().replace(/\s+/g, '-'),
           name: editingTemplate.name,
           subject: editingTemplate.subject,
           htmlBody: editingTemplate.htmlBody,
           description: editingTemplate.description,
           envelopeType: editingTemplate.envelopeType,
           phase: editingTemplate.phase,
+          templateScope: (editingTemplate as any).templateScope,
+          eventKey: (editingTemplate as any).eventKey,
+          serviceType: (editingTemplate as any).serviceType || null,
+          isActive: (editingTemplate as any).isActive !== false,
         });
         addNotification('Template created successfully', 'success');
       } else {
@@ -181,6 +208,10 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
           description: editingTemplate.description,
           envelopeType: editingTemplate.envelopeType,
           phase: editingTemplate.phase,
+          templateScope: (editingTemplate as any).templateScope,
+          eventKey: (editingTemplate as any).eventKey,
+          serviceType: (editingTemplate as any).serviceType || null,
+          isActive: (editingTemplate as any).isActive !== false,
         });
         addNotification('Template updated successfully', 'success');
       }
@@ -240,6 +271,21 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
           New Template
         </Button>
       </Box>
+      {/* How-to Guide Accordion (compact) - left aligned */}
+      <Accordion sx={{ bgcolor: '#fbfdff', border: '1px solid #e6eefc' }}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ alignItems: 'flex-start' }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, textAlign: 'left' }}>How to: Build Email Templates UI</Typography>
+        </AccordionSummary>
+        <AccordionDetails>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, textAlign: 'left' }}>
+            <Typography variant="body2">Quick checklist and guidance for editors and developers implementing this area of the app.</Typography>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Components</Typography>
+            <Typography variant="body2">Templates List, Editor modal with metadata, Variable helper panel, and a small naming guidance helper.</Typography>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Editor rules</Typography>
+            <Typography variant="body2">Require id, name, subject, htmlBody. When scope = service, require serviceType. Warn if eventKey is empty for generic/service scopes.</Typography>
+          </Box>
+        </AccordionDetails>
+      </Accordion>
 
       {error && <Alert severity="error">{error}</Alert>}
 
@@ -373,7 +419,72 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
                 slotProps={{ inputLabel: { sx: { color: 'text.primary', fontWeight: 500 } } }}
               />
 
+              {/* Event Key, Service Type, Active (Scope moved above envelope selection) */}
+              <Box sx={{ display: 'grid', gap: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <TextField
+                    variant="outlined"
+                    fullWidth
+                    label="Event Key"
+                    value={(editingTemplate as any).eventKey || ''}
+                    onChange={(e) => setEditingTemplate({ ...editingTemplate, eventKey: e.target.value })}
+                    placeholder="e.g., request-cancelled"
+                    size="small"
+                  />
+                    <Tooltip title="Event keys are stable identifiers for generic events. Use names like 'request-cancelled' or 'approval-start'. Service overrides follow {serviceType}-{eventKey} pattern.">
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <Box sx={{ width: 20, height: 20, bgcolor: '#eef6ff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#1976d2' }} aria-hidden>
+                          ?
+                        </Box>
+                      </Box>
+                    </Tooltip>
+                </Box>
+
+                {(editingTemplate as any).templateScope === 'service' && (
+                  <TextField
+                    fullWidth
+                    label="Service Type"
+                    value={(editingTemplate as any).serviceType || ''}
+                    onChange={(e) => setEditingTemplate({ ...editingTemplate, serviceType: e.target.value })}
+                    placeholder="e.g., transcript"
+                    size="small"
+                    helperText="Required when scope is Service-specific"
+                  />
+                )}
+
+                <FormControlLabel
+                  control={<Switch checked={(editingTemplate as any).isActive !== false} onChange={(e) => setEditingTemplate({ ...editingTemplate, isActive: e.target.checked })} />}
+                  label="Active"
+                />
+              </Box>
+
               {/* Envelope & Phase Selection */}
+              {/* Template Scope (prominent) */}
+              <Box sx={{ mb: 2 }}>
+                <FormControl>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                    <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 500 }}>Template Scope</Typography>
+                    <Tooltip title="Choose how this template is applied: Generic (applies across envelopes by event key), Envelope (applies to a specific envelope type/phase), or Service-specific (overrides for a specific service type).">
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <Box sx={{ width: 20, height: 20, bgcolor: '#eef6ff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#1976d2' }} aria-hidden>
+                          ?
+                        </Box>
+                      </Box>
+                    </Tooltip>
+                  </Box>
+                  <Select
+                    value={(editingTemplate as any).templateScope || 'envelope'}
+                    label="Template Scope"
+                    onChange={(e) => setEditingTemplate({ ...editingTemplate, templateScope: e.target.value as any })}
+                    size="small"
+                    sx={{ minWidth: 220 }}
+                  >
+                    <MenuItem value="generic">Generic</MenuItem>
+                    <MenuItem value="envelope">Envelope</MenuItem>
+                    <MenuItem value="service">Service-specific</MenuItem>
+                  </Select>
+                </FormControl>
+              </Box>
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
                 <Box>
                   <FormControl fullWidth>

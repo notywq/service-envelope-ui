@@ -84,10 +84,13 @@ class ApiClient {
 
   async submitServiceRequest(
     serviceId: string,
-    parameters: Record<string, string | number | boolean | Date | null>
+    parameters: Record<string, string | number | boolean | Date | null>,
+    initiator: string = 'Service Envelope Web UI'
   ): Promise<{ id: string; status: string }> {
-    const response = await this.client.post(`/api/services/${serviceId}/submit`, {
+    const response = await this.client.post(`/api/requests`, {
+      serviceId,
       parameters,
+      initiator,
     });
     return response.data;
   }
@@ -198,8 +201,8 @@ class ApiClient {
   }
   // ========== EMAIL TEMPLATE ENDPOINTS ==========
 
-  async getEmailTemplates() {
-    const response = await this.client.get('/api/admin/email-templates');
+  async getEmailTemplates(filters?: Record<string, any>) {
+    const response = await this.client.get('/api/admin/email-templates', { params: filters });
     return response.data;
   }
 
@@ -216,6 +219,10 @@ class ApiClient {
     description?: string;
     envelopeType?: string;
     phase?: string;
+    templateScope?: 'generic' | 'envelope' | 'service';
+    eventKey?: string;
+    serviceType?: string | null;
+    isActive?: boolean;
   }) {
     const response = await this.client.post('/api/admin/email-templates', data);
     return response.data;
@@ -230,6 +237,10 @@ class ApiClient {
       description?: string;
       envelopeType?: string;
       phase?: string;
+      templateScope?: 'generic' | 'envelope' | 'service';
+      eventKey?: string;
+      serviceType?: string | null;
+      isActive?: boolean;
     }
   ) {
     const response = await this.client.put(
@@ -322,6 +333,11 @@ class ApiClient {
     return response.data;
   }
 
+  async postDeliveryMethod(requestId: string, data: { method: string; details?: Record<string, any> }) {
+    const response = await this.client.post(`/api/delivery/${requestId}/method`, data);
+    return response.data;
+  }
+
   async submitDeliveryDetails(
     requestId: string,
     deliveryMethod: 'email' | 'physical_mail' | 'pickup',
@@ -344,10 +360,8 @@ class ApiClient {
     return response.data;
   }
 
-  async updateDeliveryStatus(requestId: string, status: number | string) {
-    const response = await this.client.post(`/api/delivery-status/${requestId}`, {
-      status: typeof status === 'number' ? status : status,
-    });
+  async updateDeliveryStatus(requestId: string, data: { status: number | string; notes?: string; location?: string; trackingId?: string }) {
+    const response = await this.client.post(`/api/delivery-status/${requestId}`, data);
     return response.data;
   }
 

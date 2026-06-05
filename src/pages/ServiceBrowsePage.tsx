@@ -238,7 +238,7 @@ export const ServiceBrowsePage: React.FC = () => {
                     <IconButton
                       size="small"
                       color="primary"
-                      onClick={() => navigate('/requests/new')}
+                      onClick={() => navigate(`/requests/new?serviceId=${encodeURIComponent(service.serviceId || service.id)}`)}
                       title="Request this service"
                     >
                       <ArrowForwardIcon fontSize="small" />
