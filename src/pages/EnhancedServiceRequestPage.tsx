@@ -120,6 +120,16 @@ export const EnhancedServiceRequestPage: React.FC = () => {
   }, [location.search, services]);
 
   const selectedService = services.find((s) => s.serviceId === formData.service);
+  const enabledDeliveryMethods = (['email', 'physical_mail', 'pickup'] as const).filter(
+    (method) => (deliveryInfo.deliveryMethods as any)?.[method]?.enabled === true
+  );
+
+  useEffect(() => {
+    if (selectedDeliveryMethod && !enabledDeliveryMethods.includes(selectedDeliveryMethod)) {
+      setSelectedDeliveryMethod('');
+      setDeliveryDetails({});
+    }
+  }, [selectedDeliveryMethod, enabledDeliveryMethods]);
 
   const handleServiceChange = (service: ServiceDefinition) => {
     // Update formData with the service ID
@@ -239,7 +249,7 @@ export const EnhancedServiceRequestPage: React.FC = () => {
       addNotification('Please fix the errors before proceeding', 'warning');
       return;
     }
-    if (activeStep === 2 && (Object.keys(deliveryInfo.deliveryMethods || {}).length > 0) && !selectedDeliveryMethod) {
+    if (activeStep === 2 && enabledDeliveryMethods.length > 0 && !selectedDeliveryMethod) {
       addNotification('Please select a delivery method', 'warning');
       return;
     }
@@ -286,7 +296,7 @@ export const EnhancedServiceRequestPage: React.FC = () => {
       setSubmittedRequestId(requestId || '');
       
       // Step 2: Submit delivery details (if available)
-      if (requestId && selectedDeliveryMethod && (Object.keys(deliveryInfo.deliveryMethods || {}).length || 0) > 0) {
+      if (requestId && selectedDeliveryMethod && enabledDeliveryMethods.length > 0) {
         try {
           const methodConfig: any = (deliveryInfo.deliveryMethods as any)?.[selectedDeliveryMethod] || {};
 
@@ -358,7 +368,7 @@ export const EnhancedServiceRequestPage: React.FC = () => {
       }
       
       setSubmitted(true);
-      if (!selectedDeliveryMethod || !deliveryInfo.deliveryMethods || Object.keys(deliveryInfo.deliveryMethods).length === 0) {
+      if (!selectedDeliveryMethod || enabledDeliveryMethods.length === 0) {
         addNotification('Service request submitted successfully!', 'success');
       }
     } catch (err: any) {
@@ -598,7 +608,7 @@ export const EnhancedServiceRequestPage: React.FC = () => {
               </Card>
             )}
 
-            {selectedDeliveryMethod && (Object.keys(deliveryInfo.deliveryMethods || {}).length || 0) > 0 && (
+            {selectedDeliveryMethod && enabledDeliveryMethods.length > 0 && (
               <Card>
                 <CardContent>
                   <Typography variant="subtitle2" gutterBottom>
@@ -652,7 +662,7 @@ export const EnhancedServiceRequestPage: React.FC = () => {
           <Stack spacing={3}>
             <Typography variant="h6">Choose Delivery Method</Typography>
 
-            {!deliveryInfo.deliveryMethods || Object.keys(deliveryInfo.deliveryMethods).length === 0 ? (
+            {enabledDeliveryMethods.length === 0 ? (
               <Alert severity="info">
                 This service doesn't require delivery. Click Next to proceed to review.
               </Alert>
@@ -674,7 +684,7 @@ export const EnhancedServiceRequestPage: React.FC = () => {
                     }}
                   >
                     {/* Email Option */}
-                    {deliveryInfo.deliveryMethods?.email?.enabled && (
+                    {enabledDeliveryMethods.includes('email') && (
                       <FormControlLabel
                         value="email"
                         control={<Radio />}
@@ -688,7 +698,7 @@ export const EnhancedServiceRequestPage: React.FC = () => {
                     )}
 
                     {/* Physical Mail Option */}
-                    {deliveryInfo.deliveryMethods?.physical_mail?.enabled && (
+                    {enabledDeliveryMethods.includes('physical_mail') && (
                       <FormControlLabel
                         value="physical_mail"
                         control={<Radio />}
@@ -702,7 +712,7 @@ export const EnhancedServiceRequestPage: React.FC = () => {
                     )}
 
                     {/* Pickup Option */}
-                    {deliveryInfo.deliveryMethods?.pickup?.enabled && (
+                    {enabledDeliveryMethods.includes('pickup') && (
                       <FormControlLabel
                         value="pickup"
                         control={<Radio />}
