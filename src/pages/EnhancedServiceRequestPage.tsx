@@ -123,6 +123,25 @@ export const EnhancedServiceRequestPage: React.FC = () => {
   const enabledDeliveryMethods = (['email', 'physical_mail', 'pickup'] as const).filter(
     (method) => (deliveryInfo.deliveryMethods as any)?.[method]?.enabled === true
   );
+  const envelopeRecipientEmail = [
+    formData.email,
+    formData.recipientEmail,
+    formData.emailAddress,
+    formData.recipient,
+    deliveryInfo.deliveryMethods?.email?.recipient,
+  ].find((value) => typeof value === 'string' && value.trim().length > 0)?.trim() || '';
+  const envelopeDeliveryAddress = [
+    formData.deliveryAddress,
+    formData.mailingAddress,
+    formData.address,
+    formData.recipientAddress,
+  ].find((value) => typeof value === 'string' && value.trim().length > 0)?.trim() || '';
+  const resolvedRecipientEmail = (deliveryDetails.recipient || envelopeRecipientEmail || '').trim();
+  const resolvedDeliveryAddress = (deliveryDetails.address || deliveryDetails.mailingAddress || envelopeDeliveryAddress || '').trim();
+
+  const isValidEmail = (value: string): boolean => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+  };
 
   useEffect(() => {
     if (selectedDeliveryMethod && !enabledDeliveryMethods.includes(selectedDeliveryMethod)) {
@@ -253,6 +272,20 @@ export const EnhancedServiceRequestPage: React.FC = () => {
       addNotification('Please select a delivery method', 'warning');
       return;
     }
+    if (activeStep === 2 && selectedDeliveryMethod === 'email') {
+      if (!resolvedRecipientEmail) {
+        addNotification('Please provide a recipient email address', 'warning');
+        return;
+      }
+      if (!isValidEmail(resolvedRecipientEmail)) {
+        addNotification('Please enter a valid recipient email address', 'warning');
+        return;
+      }
+    }
+    if (activeStep === 2 && selectedDeliveryMethod === 'physical_mail' && !resolvedDeliveryAddress) {
+      addNotification('Please provide a delivery address', 'warning');
+      return;
+    }
     if (activeStep === 3 && !agreedToTerms) {
       addNotification('Please agree to the terms to continue', 'warning');
       return;
@@ -282,6 +315,22 @@ export const EnhancedServiceRequestPage: React.FC = () => {
       return;
     }
 
+    if (selectedDeliveryMethod === 'email') {
+      if (!resolvedRecipientEmail) {
+        addNotification('Please provide a recipient email address', 'warning');
+        return;
+      }
+      if (!isValidEmail(resolvedRecipientEmail)) {
+        addNotification('Please enter a valid recipient email address', 'warning');
+        return;
+      }
+    }
+
+    if (selectedDeliveryMethod === 'physical_mail' && !resolvedDeliveryAddress) {
+      addNotification('Please provide a delivery address', 'warning');
+      return;
+    }
+
     try {
       setSubmitLoading(true);
       const parameters: Record<string, any> = { ...formData };
@@ -303,13 +352,13 @@ export const EnhancedServiceRequestPage: React.FC = () => {
           let methodSpecificDetails: Record<string, any> = {};
           if (selectedDeliveryMethod === 'email') {
             methodSpecificDetails = {
-              recipient: deliveryDetails.recipient || formData.email || methodConfig.recipient,
+              recipient: resolvedRecipientEmail,
               subject: deliveryDetails.subject || methodConfig.subject,
               templateId: methodConfig.emailTemplateId,
             };
           } else if (selectedDeliveryMethod === 'physical_mail') {
             methodSpecificDetails = {
-              address: deliveryDetails.address || deliveryDetails.mailingAddress,
+              address: resolvedDeliveryAddress,
               carrier: deliveryDetails.carrier || methodConfig.carrier,
               requiresSignature: methodConfig.requiresSignature,
               estimatedDays: methodConfig.estimatedDays,
@@ -730,10 +779,23 @@ export const EnhancedServiceRequestPage: React.FC = () => {
                         Email Details
                       </Typography>
                       <Stack spacing={2}>
-                        <Box sx={{ p: 1.5, backgroundColor: '#fff', borderRadius: 1, border: '1px solid #e0e0e0' }}>
-                          <Typography variant="caption" sx={{ color: '#666' }}>Recipient Email</Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 500 }}>{formData.email || 'No email provided'}</Typography>
-                        </Box>
+                        {envelopeRecipientEmail ? (
+                          <Box sx={{ p: 1.5, backgroundColor: '#fff', borderRadius: 1, border: '1px solid #e0e0e0' }}>
+                            <Typography variant="caption" sx={{ color: '#666' }}>Recipient Email</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 500 }}>{envelopeRecipientEmail}</Typography>
+                          </Box>
+                        ) : (
+                          <TextField
+                            fullWidth
+                            required
+                            label="Recipient Email"
+                            type="email"
+                            value={deliveryDetails.recipient || ''}
+                            onChange={(e) => setDeliveryDetails({ ...deliveryDetails, recipient: e.target.value })}
+                            placeholder="name@example.com"
+                            helperText="Enter where the delivery email should be sent."
+                          />
+                        )}
                         {Object.entries(deliveryInfo.deliveryMethods?.email?.fields || {}).map(([field, config]: [string, any]) => (
                           <TextField
                             key={field}
@@ -769,6 +831,24 @@ export const EnhancedServiceRequestPage: React.FC = () => {
                             <Typography variant="body2" sx={{ fontWeight: 500 }}>{deliveryInfo.deliveryMethods?.physical_mail?.estimatedDays || '5-7'} days</Typography>
                           </Box>
                         </Box>
+                        {envelopeDeliveryAddress ? (
+                          <Box sx={{ p: 1.5, backgroundColor: '#fff', borderRadius: 1, border: '1px solid #e0e0e0' }}>
+                            <Typography variant="caption" sx={{ color: '#666' }}>Delivery Address</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 500 }}>{envelopeDeliveryAddress}</Typography>
+                          </Box>
+                        ) : (
+                          <TextField
+                            fullWidth
+                            required
+                            multiline
+                            rows={3}
+                            label="Delivery Address"
+                            value={deliveryDetails.address || deliveryDetails.mailingAddress || ''}
+                            onChange={(e) => setDeliveryDetails({ ...deliveryDetails, address: e.target.value, mailingAddress: e.target.value })}
+                            placeholder="Enter complete mailing address"
+                            helperText="Enter where physical mail should be delivered."
+                          />
+                        )}
                         {Object.entries(deliveryInfo.deliveryMethods?.physical_mail?.fields || {}).map(([field, config]: [string, any]) => (
                           <TextField
                             key={field}
