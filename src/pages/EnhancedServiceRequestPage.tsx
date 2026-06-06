@@ -340,12 +340,27 @@ export const EnhancedServiceRequestPage: React.FC = () => {
       console.log('📋 Step 1: Submitting request with parameters...');
       const resultAny: any = await api.submitServiceRequest(formData.service, parameters, 'Service Envelope Web UI');
       console.log('✅ Request submitted:', resultAny);
-      const requestId: string | undefined =
-        resultAny?.requestId || resultAny?.requestId === 0 ? resultAny.requestId : resultAny?.id || resultAny?.request?.id;
-      setSubmittedRequestId(requestId || '');
+
+      const requestIdCandidates = [
+        resultAny?.requestId,
+        resultAny?.id,
+        resultAny?.request?.requestId,
+        resultAny?.request?.id,
+        resultAny?.data?.requestId,
+        resultAny?.data?.id,
+      ];
+      const requestId = requestIdCandidates
+        .map((value) => (value === undefined || value === null ? '' : String(value).trim()))
+        .find((value) => value.length > 0);
+
+      if (!requestId) {
+        throw new Error('Request was created but requestId was not returned by /api/requests response');
+      }
+
+      setSubmittedRequestId(requestId);
       
       // Step 2: Submit delivery details (if available)
-      if (requestId && selectedDeliveryMethod && enabledDeliveryMethods.length > 0) {
+      if (selectedDeliveryMethod && enabledDeliveryMethods.length > 0) {
         try {
           const methodConfig: any = (deliveryInfo.deliveryMethods as any)?.[selectedDeliveryMethod] || {};
 

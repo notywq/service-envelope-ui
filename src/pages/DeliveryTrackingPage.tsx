@@ -133,6 +133,10 @@ export const DeliveryTrackingPage: React.FC = () => {
   const [selectedMethod, setSelectedMethod] = useState<string>('');
   const [methodDetails, setMethodDetails] = useState<Record<string, any>>({});
 
+  const resolveMethodFromEndpoint = (methodData: any): 'email' | 'physical_mail' | 'pickup' | '' => {
+    return normalizeDeliveryMethod(methodData?.deliveryMethod || methodData?.method || methodData?.type);
+  };
+
   const mergeDeliveryStatus = (previous: DeliveryStatus | null, next: DeliveryStatus): DeliveryStatus => {
     return {
       ...(previous || {}),
@@ -194,9 +198,10 @@ export const DeliveryTrackingPage: React.FC = () => {
             statusData.step ??
             (typeof statusData.status === 'number' ? statusData.status : 0),
         };
-        // Attach deliveryType from methodData if present
-        if (methodData && (methodData.deliveryMethod || methodData.method || methodData.type)) {
-          const method = (methodData.deliveryMethod || methodData.method || methodData.type || '').toString();
+        // Attach deliveryType from method endpoint when available
+        const endpointMethod = resolveMethodFromEndpoint(methodData);
+        if (endpointMethod) {
+          const method = endpointMethod.toString();
           processedStatus.deliveryType =
             method.toLowerCase() === 'email' ? 'EMAIL' : method.toLowerCase() === 'pickup' ? 'PICKUP' : 'PHYSICAL';
         } else if (processedStatus.deliveryType) {
@@ -242,7 +247,13 @@ export const DeliveryTrackingPage: React.FC = () => {
     if (shouldPoll) {
       timer = setInterval(async () => {
         try {
-          const fresh = await api.getDeliveryStatus(requestId);
+          const [freshMethod, fresh] = await Promise.all([
+            api.getDeliveryMethod(requestId).catch(() => null),
+            api.getDeliveryStatus(requestId).catch(() => null),
+          ]);
+          if (freshMethod) {
+            setMethodInfo(freshMethod);
+          }
           if (fresh) {
             setDeliveryStatus((prev) => mergeDeliveryStatus(prev, fresh as DeliveryStatus));
           }
@@ -309,13 +320,10 @@ export const DeliveryTrackingPage: React.FC = () => {
     );
   }
 
-  const isEmailDelivery = deliveryStatus.deliveryType === 'EMAIL';
-  const isPickup = deliveryStatus.deliveryType === 'PICKUP';
-  const isPhysical = deliveryStatus.deliveryType === 'PHYSICAL';
-  const deliveryMethod = normalizeDeliveryMethod(
-    methodInfo?.deliveryMethod || methodInfo?.method || methodInfo?.type ||
-      (isEmailDelivery ? 'email' : isPickup ? 'pickup' : isPhysical ? 'physical_mail' : '')
-  );
+  const deliveryMethod = resolveMethodFromEndpoint(methodInfo);
+  const isEmailDelivery = deliveryMethod === 'email';
+  const isPickup = deliveryMethod === 'pickup';
+  const isPhysical = deliveryMethod === 'physical_mail';
   const resolvedState = resolveDeliveryState(deliveryMethod, deliveryStatus);
   const isDelivered = !!resolvedState?.isTerminal || deliveryStatus.status === 'delivered' || deliveryStatus.status === 'Delivered';
   const stateLabel = resolvedState?.label || (isDelivered ? 'Delivered' : 'Pending');
@@ -385,7 +393,7 @@ export const DeliveryTrackingPage: React.FC = () => {
         </Stack>
       </Box>
       {/* Method selection when none chosen yet */}
-      {methodInfo && !methodInfo.deliveryMethod && (
+      {methodInfo && !deliveryMethod && (
         <Card sx={{ mb: 3 }}>
           <CardContent>
             <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>Select Delivery Method</Typography>

@@ -463,6 +463,101 @@ const EnvelopeContentRenderer: React.FC<{
   const renderDeliveryEnvelope = () => {
     const deliveryMethods = envelope?.deliveryMethods || envelope?.availableMethods || {};
     const selectedMethod = resolvedDeliveryMethod || envelope?.method || envelope?.currentMethod;
+    const formatLabel = (key: string) =>
+      key
+        .replace(/_/g, ' ')
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/\b\w/g, (ch) => ch.toUpperCase());
+
+    const renderPrimitive = (value: any) => {
+      if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+      return String(value);
+    };
+
+    const renderObjectRows = (obj: Record<string, any>) => {
+      const objectEntries = Object.entries(obj).filter(
+        ([, value]) => value !== undefined && value !== null && value !== ''
+      );
+
+      if (objectEntries.length === 0) {
+        return <Typography variant="body2" color="textSecondary">No additional details</Typography>;
+      }
+
+      return (
+        <Table size="small" sx={{ bgcolor: '#fff' }}>
+          <TableBody>
+            {objectEntries.map(([key, value]) => (
+              <TableRow key={key}>
+                <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600, width: '35%' }}>
+                  {formatLabel(key)}
+                </TableCell>
+                <TableCell sx={{ wordBreak: 'break-word' }}>
+                  {typeof value === 'object' ? renderObjectRows(value) : renderPrimitive(value)}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      );
+    };
+
+    const renderMethodDetails = (details: any) => {
+      const detailEntries = Object.entries(details || {}).filter(([key, value]) => {
+        if (key === 'enabled') return false;
+        if (value === undefined || value === null || value === '') return false;
+        if (Array.isArray(value) && value.length === 0) return false;
+        return true;
+      });
+
+      if (detailEntries.length === 0) {
+        return <Typography variant="body2" color="textSecondary">No method details configured</Typography>;
+      }
+
+      return (
+        <Stack spacing={1} sx={{ width: '100%', alignItems: 'flex-start' }}>
+          {detailEntries.map(([key, value]) => (
+            <Box key={key} sx={{ width: '100%' }}>
+              <Typography variant="caption" color="textSecondary">
+                {formatLabel(key)}
+              </Typography>
+
+              {Array.isArray(value) ? (
+                typeof value[0] === 'object' ? (
+                  <Stack spacing={1} sx={{ mt: 0.5 }}>
+                    {value.map((item, index) => (
+                      <Box
+                        key={`${key}-${index}`}
+                        sx={{
+                          p: 1,
+                          borderRadius: 1,
+                          border: '1px solid #e0e0e0',
+                          bgcolor: '#fff',
+                          width: '100%',
+                        }}
+                      >
+                        {renderObjectRows(item || {})}
+                      </Box>
+                    ))}
+                  </Stack>
+                ) : (
+                  <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', display: 'flex', mt: 0.5 }}>
+                    {value.map((item, index) => (
+                      <Chip key={`${key}-${index}`} label={renderPrimitive(item)} size="small" variant="outlined" />
+                    ))}
+                  </Stack>
+                )
+              ) : value && typeof value === 'object' ? (
+                <Box sx={{ mt: 0.5 }}>{renderObjectRows(value)}</Box>
+              ) : (
+                <Typography variant="body2" sx={{ fontWeight: 500, wordBreak: 'break-word' }}>
+                  {renderPrimitive(value)}
+                </Typography>
+              )}
+            </Box>
+          ))}
+        </Stack>
+      );
+    };
 
     // Show available delivery methods
     return (
@@ -500,117 +595,7 @@ const EnvelopeContentRenderer: React.FC<{
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, textTransform: 'capitalize' }}>
                       {method.replace(/_/g, ' ')}
                     </Typography>
-
-                    {method === 'email' && (
-                      <Stack spacing={0.5} sx={{ width: '100%', alignItems: 'flex-start' }}>
-                        {details.emailTemplateId && (
-                          <Box sx={{ width: '100%' }}>
-                            <Typography variant="caption" color="textSecondary">
-                              Email Template
-                            </Typography>
-                            <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                              {details.emailTemplateId}
-                            </Typography>
-                          </Box>
-                        )}
-                        {details.recipient && (
-                        <Box sx={{ width: '100%' }}>
-                          <Typography variant="caption" color="textSecondary">
-                            Recipient
-                          </Typography>
-                          <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                            {details.recipient}
-                          </Typography>
-                        </Box>
-                        )}
-                        {details.subject && (
-                          <Box sx={{ width: '100%' }}>
-                            <Typography variant="caption" color="textSecondary">
-                              Subject
-                            </Typography>
-                            <Typography variant="body2">{details.subject}</Typography>
-                          </Box>
-                        )}
-                        {details.resolveAttachmentsFrom && (
-                          <Box sx={{ width: '100%' }}>
-                            <Typography variant="caption" color="textSecondary">
-                              Attachments
-                            </Typography>
-                            <Box component="pre" sx={{ m: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '0.75rem' }}>
-                              {JSON.stringify(details.resolveAttachmentsFrom, null, 2)}
-                            </Box>
-                          </Box>
-                        )}
-                      </Stack>
-                    )}
-
-                    {method === 'physical_mail' && (
-                      <Stack spacing={0.5} sx={{ width: '100%', alignItems: 'flex-start' }}>
-                        {details.address && (
-                          <Box sx={{ width: '100%' }}>
-                            <Typography variant="caption" color="textSecondary">
-                              Address
-                            </Typography>
-                            <Typography variant="body2">{details.address}</Typography>
-                          </Box>
-                        )}
-                        {details.carrier && (
-                          <Box sx={{ width: '100%' }}>
-                            <Typography variant="caption" color="textSecondary">
-                              Carrier
-                            </Typography>
-                            <Typography variant="body2">{details.carrier}</Typography>
-                          </Box>
-                        )}
-                        {details.estimatedDays && (
-                          <Box sx={{ width: '100%' }}>
-                            <Typography variant="caption" color="textSecondary">
-                              Estimated Days
-                            </Typography>
-                            <Typography variant="body2">{details.estimatedDays} days</Typography>
-                          </Box>
-                        )}
-                      </Stack>
-                    )}
-
-                    {method === 'pickup' && (
-                      <Stack spacing={0.5} sx={{ width: '100%', alignItems: 'flex-start' }}>
-                        {details.location && (
-                          <Box sx={{ width: '100%' }}>
-                            <Typography variant="caption" color="textSecondary">
-                              Location
-                            </Typography>
-                            <Typography variant="body2">{details.location}</Typography>
-                          </Box>
-                        )}
-                        {details.hoursOfOperation && (
-                          <Box sx={{ width: '100%' }}>
-                            <Typography variant="caption" color="textSecondary">
-                              Hours
-                            </Typography>
-                            <Typography variant="body2">{details.hoursOfOperation}</Typography>
-                          </Box>
-                        )}
-                        {details.pickupDeadlineDays && (
-                          <Box sx={{ width: '100%' }}>
-                            <Typography variant="caption" color="textSecondary">
-                              Pickup Deadline
-                            </Typography>
-                            <Typography variant="body2">{details.pickupDeadlineDays} days</Typography>
-                          </Box>
-                        )}
-                        {details.notificationTemplateId && (
-                          <Box sx={{ width: '100%' }}>
-                            <Typography variant="caption" color="textSecondary">
-                              Notification Template
-                            </Typography>
-                            <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                              {details.notificationTemplateId}
-                            </Typography>
-                          </Box>
-                        )}
-                      </Stack>
-                    )}
+                    {renderMethodDetails(details)}
                   </Box>
                 )
               ))}
@@ -953,6 +938,29 @@ export const RequestDetailPage: React.FC = () => {
     loadRequest();
   }, [requestId]);
 
+  useEffect(() => {
+    if (!requestId) return;
+
+    const resolvedMethod = normalizeDeliveryMethod(
+      deliveryMethodInfo?.deliveryMethod ||
+        deliveryMethodInfo?.method ||
+        deliveryMethodInfo?.type
+    );
+
+    if (resolvedMethod) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        const freshMethod = await api.getDeliveryMethod(requestId);
+        setDeliveryMethodInfo(freshMethod);
+      } catch {
+        // Keep existing state if delayed refetch fails.
+      }
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [requestId, deliveryMethodInfo]);
+
   const handleRefresh = async () => {
     if (!requestId) return;
     try {
@@ -1033,15 +1041,10 @@ export const RequestDetailPage: React.FC = () => {
     return <Alert severity="error">{error || 'Request not found'}</Alert>;
   }
 
-  const deliveryEnvelope = (request.envelopes as any)?.delivery || {};
   const requestDeliveryMethod = normalizeDeliveryMethod(
     deliveryMethodInfo?.deliveryMethod ||
       deliveryMethodInfo?.method ||
-      deliveryMethodInfo?.type ||
-      deliveryEnvelope.deliveryMethod ||
-      deliveryEnvelope.method ||
-      deliveryEnvelope.currentMethod ||
-      deliveryEnvelope.details?.deliveryMethod
+      deliveryMethodInfo?.type
   );
   const resolvedDeliveryState = resolveDeliveryState(requestDeliveryMethod, deliveryCurrent);
   const simulationPresets = getDeliverySimulationPresets(requestDeliveryMethod);
