@@ -1046,6 +1046,35 @@ export const RequestDetailPage: React.FC = () => {
       deliveryMethodInfo?.method ||
       deliveryMethodInfo?.type
   );
+  const approvalEnvelope = (request.envelopes as any)?.approval || {};
+  const paymentEnvelope = (request.envelopes as any)?.payment || {};
+  const processingEnvelope = (request.envelopes as any)?.processing || {};
+  const deliveryEnvelope = (request.envelopes as any)?.delivery || {};
+
+  const approvalEnvelopeStatus = approvalEnvelope?.status?.toString().toLowerCase();
+  const paymentEnvelopeStatus = paymentEnvelope?.status?.toString().toLowerCase();
+  const processingEnvelopeStatus = processingEnvelope?.status?.toString().toLowerCase();
+  const requestStatus = request.status?.toString().toLowerCase();
+
+  const isStatusReadyForNextStage = (status?: string): boolean =>
+    ['completed', 'approved', 'paid', 'waived', 'skipped', 'not_required'].includes((status || '').toLowerCase());
+
+  const approvalReady = approvalEnvelope?.required === false || isStatusReadyForNextStage(approvalEnvelopeStatus);
+  const paymentReady = paymentEnvelope?.required === false || isStatusReadyForNextStage(paymentEnvelopeStatus);
+  const processingReady = processingEnvelope?.required === false || isStatusReadyForNextStage(processingEnvelopeStatus);
+
+  const deliveryPhaseStarted =
+    !!deliveryEnvelope?.startedAt ||
+    !!deliveryEnvelope?.deliveredAt ||
+    !!deliveryCurrent?.code_name ||
+    typeof deliveryCurrent?.code_number === 'number';
+
+  const isDeliveryTurnActive =
+    !['failed', 'cancelled'].includes(requestStatus || '') &&
+    approvalReady &&
+    paymentReady &&
+    processingReady &&
+    deliveryPhaseStarted;
   const resolvedDeliveryState = resolveDeliveryState(requestDeliveryMethod, deliveryCurrent);
   const simulationPresets = getDeliverySimulationPresets(requestDeliveryMethod);
 
@@ -1083,7 +1112,15 @@ export const RequestDetailPage: React.FC = () => {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: { xs: 'flex-start', md: 'center' },
+          flexDirection: { xs: 'column', md: 'row' },
+          gap: 2,
+        }}
+      >
         <Box>
           <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
             Request Details
@@ -1092,58 +1129,97 @@ export const RequestDetailPage: React.FC = () => {
             {request.id}
           </Typography>
         </Box>
-        <Stack direction="row" spacing={1}>
-          <Button
-            variant="outlined"
-            startIcon={<RefreshIcon />}
-            onClick={handleRefresh}
-            disabled={actionLoading}
+
+        <Stack
+          spacing={1.25}
+          sx={{ width: { xs: '100%', md: 'auto' }, alignItems: { xs: 'stretch', md: 'flex-end' } }}
+        >
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{
+              flexWrap: 'wrap',
+              rowGap: 1,
+              justifyContent: { xs: 'flex-start', md: 'flex-end' },
+            }}
           >
-            Refresh
-          </Button>
-          {request.status === 'pending_external' && (
             <Button
-              variant="contained"
-              color="primary"
-              startIcon={<PlayArrowIcon />}
-              onClick={handleResume}
+              variant="outlined"
+              startIcon={<RefreshIcon />}
+              onClick={handleRefresh}
               disabled={actionLoading}
+              sx={{ minWidth: 132 }}
             >
-              Resume
+              Refresh
             </Button>
-          )}
-          {simulationPresets.length > 0 ? (
-            simulationPresets.map((preset) => (
+
+            {request.status === 'pending_external' && (
               <Button
-                key={preset.buttonKey}
+                variant="contained"
+                color="primary"
+                startIcon={<PlayArrowIcon />}
+                onClick={handleResume}
+                disabled={actionLoading}
+                sx={{ minWidth: 132 }}
+              >
+                Resume
+              </Button>
+            )}
+
+            <Button
+              variant="outlined"
+              color="error"
+              startIcon={<DeleteIcon />}
+              onClick={() => setCancelDialogOpen(true)}
+              disabled={actionLoading || request.status === 'completed'}
+              sx={{ minWidth: 132 }}
+            >
+              Cancel
+            </Button>
+          </Stack>
+
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{
+              flexWrap: 'wrap',
+              rowGap: 1,
+              justifyContent: { xs: 'flex-start', md: 'flex-end' },
+            }}
+          >
+            {simulationPresets.length > 0 ? (
+              simulationPresets.map((preset) => (
+                <Button
+                  key={preset.buttonKey}
+                  variant="contained"
+                  color="success"
+                  onClick={() => handleSimulatePreset(preset)}
+                  disabled={simulatingDelivery || !isDeliveryTurnActive || request.status === 'completed' || !!resolvedDeliveryState?.isTerminal}
+                  sx={{
+                    minWidth: 176,
+                    opacity: !isDeliveryTurnActive || request.status === 'completed' || resolvedDeliveryState?.isTerminal ? 0.5 : 1,
+                  }}
+                >
+                  {simulatingDelivery ? 'Simulating...' : preset.label}
+                </Button>
+              ))
+            ) : (
+              <Button
                 variant="contained"
                 color="success"
-                onClick={() => handleSimulatePreset(preset)}
-                disabled={simulatingDelivery || request.status === 'completed' || !!resolvedDeliveryState?.isTerminal}
-                sx={{ opacity: request.status === 'completed' || resolvedDeliveryState?.isTerminal ? 0.5 : 1 }}
+                disabled
+                sx={{ minWidth: 176, opacity: request.status === 'completed' ? 0.5 : 1 }}
               >
-                {simulatingDelivery ? 'Simulating...' : preset.label}
+                No Delivery Method
               </Button>
-            ))
-          ) : (
-            <Button
-              variant="contained"
-              color="success"
-              disabled
-              sx={{ opacity: request.status === 'completed' ? 0.5 : 1 }}
-            >
-              No Delivery Method
-            </Button>
+            )}
+          </Stack>
+
+          {!isDeliveryTurnActive && (
+            <Alert severity="warning" variant="outlined" sx={{ py: 0.5, width: '100%', maxWidth: 420 }}>
+              Delivery stage not active yet.
+            </Alert>
           )}
-          <Button
-            variant="outlined"
-            color="error"
-            startIcon={<DeleteIcon />}
-            onClick={() => setCancelDialogOpen(true)}
-            disabled={actionLoading || request.status === 'completed'}
-          >
-            Cancel
-          </Button>
         </Stack>
       </Box>
 
