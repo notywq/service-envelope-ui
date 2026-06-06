@@ -75,6 +75,7 @@ function TabPanel(props: TabPanelProps) {
 }
 
 export const AdminServiceBuilderPage: React.FC = () => {
+  const EXPECTED_SCHEMA_VERSION = '1.0.3';
   const { addNotification } = useNotification();
   const { user } = useAuth();
 
@@ -111,6 +112,13 @@ export const AdminServiceBuilderPage: React.FC = () => {
           schemaValidator.setSchema(schemaData.schema, schemaData.version);
           const version = schemaData.version || 'unknown';
           setSchemaVersion(version);
+
+          if (version !== EXPECTED_SCHEMA_VERSION) {
+            addNotification(
+              `Schema mismatch: expected ${EXPECTED_SCHEMA_VERSION}, loaded ${version}`,
+              'warning'
+            );
+          }
           
           // Verify schema was set in validator
           const validatorVersion = schemaValidator.getSchemaVersion();
@@ -128,7 +136,7 @@ export const AdminServiceBuilderPage: React.FC = () => {
           });
           setSchemaError('Could not load JSON Schema from server');
           setSchemaVersion('local-only');
-          addNotification('Schema not available - using local validation only', 'warning');
+          addNotification('Schema not available - validation is disabled until schema loads', 'warning');
         }
 
         // Load services
@@ -189,7 +197,7 @@ export const AdminServiceBuilderPage: React.FC = () => {
       const parsed = YAML.load(yaml) as any;
       setParsedYaml(parsed);
 
-      let isSchemaValid = true;
+      let isSchemaValid = false;
       let schemaErrors: any[] = [];
       
       if (schemaValidator.getSchema()) {
@@ -204,8 +212,15 @@ export const AdminServiceBuilderPage: React.FC = () => {
           schemaVersion: schemaValidationResult.schemaVersion,
         });
       } else {
-        // Schema not available - log warning but allow continuation
-        console.warn('⚠️ Schema not available, skipping JSON schema validation');
+        // Never allow saving if canonical schema is unavailable.
+        console.warn('⚠️ Schema not available, cannot validate service definition');
+        schemaErrors = [
+          {
+            path: '/',
+            message: 'Schema is not loaded from MongoDB. Reload schema and try again.',
+            keyword: 'schema_unavailable',
+          },
+        ];
       }
 
       setSchemaValidationErrors(schemaErrors);
@@ -237,14 +252,32 @@ export const AdminServiceBuilderPage: React.FC = () => {
   const getServiceIdFromService = (service: any) => {
     try {
       if (service.serviceId) return service.serviceId;
+      if (service.id && typeof service.id === 'string' && service.id.startsWith('SERV-')) return service.id;
+      if (service.definition?.id) return service.definition.id;
       if (service.yaml) {
         const parsed = YAML.load(service.yaml) as any;
-        return parsed?.serviceId || 'N/A';
+        return parsed?.id || parsed?.serviceId || 'N/A';
       }
       return 'N/A';
     } catch {
       return 'N/A';
     }
+  };
+
+  const getServiceYamlFromService = (service: any): string => {
+    if (typeof service?.yaml === 'string' && service.yaml.trim()) {
+      return service.yaml;
+    }
+
+    if (service?.definition && typeof service.definition === 'object') {
+      try {
+        return YAML.dump(service.definition, { noRefs: true, lineWidth: -1 });
+      } catch {
+        return '';
+      }
+    }
+
+    return '';
   };
 
   const handleSaveService = async () => {
@@ -265,11 +298,33 @@ export const AdminServiceBuilderPage: React.FC = () => {
 
     setSaving(true);
     try {
+      const normalizedName = serviceName.trim();
+      let normalizedParsed = parsedYaml;
+      let normalizedYaml = yamlContent;
+
+      // Keep YAML definition.name aligned with the UI name field.
+      if (normalizedParsed.name !== normalizedName) {
+        normalizedParsed = {
+          ...normalizedParsed,
+          name: normalizedName,
+        };
+        normalizedYaml = YAML.dump(normalizedParsed, { noRefs: true, lineWidth: -1 });
+        setParsedYaml(normalizedParsed);
+        setYamlContent(normalizedYaml);
+      }
+
+      const serviceIdentifier = normalizedParsed.id || normalizedParsed.serviceId;
+      if (!serviceIdentifier) {
+        addNotification('YAML must include an id (or legacy serviceId) before saving', 'error');
+        return;
+      }
+
       const serviceData = {
-        name: serviceName,
-        yaml: yamlContent,
-        type: parsedYaml.type,
-        serviceId: parsedYaml.serviceId,
+        name: normalizedName,
+        yaml: normalizedYaml,
+        type: normalizedParsed.type,
+        id: serviceIdentifier,
+        serviceId: serviceIdentifier,
         initiator: user.email,
         schemaVersion: schemaValidator.getSchemaVersion() || undefined,
         validatedAt: new Date().toISOString(),
@@ -308,10 +363,21 @@ export const AdminServiceBuilderPage: React.FC = () => {
   const handleLoadService = (serviceId: string) => {
     const service = services.find((s) => s.id === serviceId);
     if (service) {
+      const yamlToLoad = getServiceYamlFromService(service);
+      if (!yamlToLoad) {
+        addNotification('Could not load YAML/definition for this service', 'error');
+        return;
+      }
+
       setSelectedServiceId(serviceId);
-      setServiceName(service.name);
-      setYamlContent(service.yaml);
-      validateAndParse(service.yaml);
+      setYamlContent(yamlToLoad);
+      validateAndParse(yamlToLoad);
+      try {
+        const parsed = YAML.load(yamlToLoad) as any;
+        setServiceName(service.name || parsed?.name || '');
+      } catch {
+        setServiceName(service.name || '');
+      }
       setIsEditingExisting(true);
       setTabValue(0);
     }
@@ -408,13 +474,14 @@ export const AdminServiceBuilderPage: React.FC = () => {
     validateAndParse(template);
   };
 
-  const basicTemplate = `serviceId: SERV-001
+  const basicTemplate = `id: SERV-001
 type: service-name
 name: My Service
 description: Brief service description
 
 envelopes:
   request:
+    required: true
     parameters:
       firstName:
         type: String
@@ -423,6 +490,7 @@ envelopes:
         maxLength: 100
   
   approval:
+    required: true
     approvalRules:
       type: specific_approver
       specificApprover: approver@example.com
@@ -437,16 +505,23 @@ envelopes:
         currency: PHP
   
   processing:
+    required: true
     tasks:
       - name: verify_request
         type: api_call
         method: POST
         url: https://api.example.com/verify
+        timeout: 30000
+        retries: 1
+        successCodes: [200, 201]
   
   delivery:
-    method: email
-    email:
-      templateId: SERV-001-delivery-start
+    required: true
+    deliveryMethods:
+      email:
+        enabled: true
+        subject: "Service Update - {{requestId}}"
+        recipient: "{{email}}"
   
   feedback:
     required: true
@@ -854,20 +929,23 @@ envelopes:
                   lineHeight: 1.6,
                   textAlign: 'left',
                 }}>
-{`serviceId: SERV-001
+{`id: SERV-001
 type: service-type
 name: Service Name
 description: Brief description
 
 envelopes:
   request:
+    required: true
     parameters:
       param1: { type: String, required: true }
       param2: { type: Number, required: false }
   
   approval:
-    type: all_must_approve | any_one | specific_approver | complex
-    approvers: [emails]
+    required: true|false
+    approvalRules:
+      type: all_must_approve | any_one | specific_approver | complex
+      requiredApprovers: [emails]
     expiryHours: 48
   
   payment:
@@ -878,15 +956,22 @@ envelopes:
         currency: PHP
   
   processing:
+    required: true|false
     tasks:
       - name: task_name
         type: api_call
         method: GET
         url: https://...
+        timeout: 30000
+        retries: 1
+        successCodes: [200]
   
   delivery:
-    method: email | physical_mail | pickup
-    email: { templateId: template-name }
+    required: true|false
+    deliveryMethods:
+      email: { enabled: true, recipient: "{{email}}" }
+      physical_mail: { enabled: false }
+      pickup: { enabled: false }
   
   feedback:
     required: true|false`}
@@ -945,13 +1030,14 @@ envelopes:
                 title: '📜 Transcript of Records (TOR)',
                 subtitle: 'Multi-approver payment service with processing and email delivery',
                 complexity: 'Advanced',
-                code: `serviceId: SERV-001
+                code: `id: SERV-001
 type: transcript-of-records
 name: Transcript of Records
 description: Official academic transcript request
 
 envelopes:
   request:
+    required: true
     parameters:
       studentId:
         type: String
@@ -974,12 +1060,14 @@ envelopes:
           - Visa
   
   approval:
-    type: complex
-    requiredApprovers:
-      - records@mapua.edu.ph
-    atLeastOneOf:
-      - dean@mapua.edu.ph
-      - registrar@mapua.edu.ph
+    required: true
+    approvalRules:
+      type: complex
+      requiredApprovers:
+        - records@mapua.edu.ph
+      atLeastOneOf:
+        - dean@mapua.edu.ph
+        - registrar@mapua.edu.ph
     expiryHours: 48
   
   payment:
@@ -993,25 +1081,37 @@ envelopes:
         currency: PHP
   
   processing:
+    required: true
     tasks:
       - name: verify_student
         type: api_call
         method: GET
         url: https://api.registrar.local/verify
+        timeout: 30000
+        retries: 1
+        successCodes: [200]
       - name: pull_transcript
         type: api_call
         method: GET
         url: https://api.registrar.local/transcript
+        timeout: 30000
+        retries: 1
+        successCodes: [200]
       - name: generate_pdf
         type: api_call
         method: POST
         url: https://api.generator.local/pdf
+        timeout: 30000
+        retries: 1
+        successCodes: [200, 201]
   
   delivery:
-    method: email
-    email:
-      templateId: tor-request-confirmation
-      subject: "Your Transcript Request - {{requestId}}"
+    required: true
+    deliveryMethods:
+      email:
+        enabled: true
+        subject: "Your Transcript Request - {{requestId}}"
+        recipient: "{{email}}"
   
   feedback:
     required: false`,
@@ -1020,13 +1120,14 @@ envelopes:
                 title: '🏥 Clinic Visit Appointment',
                 subtitle: 'Simple service with single approver and no payment',
                 complexity: 'Simple',
-                code: `serviceId: SERV-002
+                code: `id: SERV-002
 type: clinic-appointment
 name: Clinic Visit Appointment
 description: Schedule appointment at campus clinic
 
 envelopes:
   request:
+    required: true
     parameters:
       studentId:
         type: String
@@ -1049,28 +1150,39 @@ envelopes:
         default: false
   
   approval:
-    type: specific_approver
-    specificApprover: clinic@mapua.edu.ph
+    required: true
+    approvalRules:
+      type: specific_approver
+      specificApprover: clinic@mapua.edu.ph
     expiryHours: 24
   
   payment:
     required: false
   
   processing:
+    required: true
     tasks:
       - name: verify_student_active
         type: api_call
         method: POST
         url: https://api.registrar.local/verify-active
+        timeout: 30000
+        retries: 1
+        successCodes: [200]
       - name: check_clinic_availability
         type: api_call
         method: POST
         url: https://api.clinic.local/availability
+        timeout: 30000
+        retries: 1
+        successCodes: [200]
   
   delivery:
-    method: email
-    email:
-      templateId: clinic-appointment-confirmation
+    required: true
+    deliveryMethods:
+      email:
+        enabled: true
+        recipient: "{{email}}"
   
   feedback:
     required: true`,
@@ -1079,13 +1191,14 @@ envelopes:
                 title: '🏨 On-Campus Housing Rental',
                 subtitle: 'Multi-approver with itemized payment and multiple tasks',
                 complexity: 'Advanced',
-                code: `serviceId: SERV-003
+                code: `id: SERV-003
 type: housing-rental
 name: On-Campus Housing Rental
 description: Apply for campus dormitory housing
 
 envelopes:
   request:
+    required: true
     parameters:
       studentId:
         type: String
@@ -1112,10 +1225,12 @@ envelopes:
         maxLength: 1000
   
   approval:
-    type: all_must_approve
-    approvers:
-      - housing@mapua.edu.ph
-      - finance@mapua.edu.ph
+    required: true
+    approvalRules:
+      type: all_must_approve
+      requiredApprovers:
+        - housing@mapua.edu.ph
+        - finance@mapua.edu.ph
     expiryHours: 72
   
   payment:
@@ -1132,28 +1247,43 @@ envelopes:
         currency: PHP
   
   processing:
+    required: true
     tasks:
       - name: verify_eligibility
         type: api_call
         method: POST
         url: https://api.housing.local/verify-eligibility
+        timeout: 30000
+        retries: 1
+        successCodes: [200]
       - name: check_availability
         type: api_call
         method: GET
         url: https://api.housing.local/availability
+        timeout: 30000
+        retries: 1
+        successCodes: [200]
       - name: generate_contract
         type: api_call
         method: POST
         url: https://api.housing.local/generate-contract
+        timeout: 30000
+        retries: 1
+        successCodes: [200, 201]
       - name: record_occupancy
         type: api_call
         method: POST
         url: https://api.housing.local/occupancy
+        timeout: 30000
+        retries: 1
+        successCodes: [200, 201]
   
   delivery:
-    method: email
-    email:
-      templateId: housing-contract
+    required: true
+    deliveryMethods:
+      email:
+        enabled: true
+        recipient: "{{email}}"
   
   feedback:
     required: true`,
@@ -1162,13 +1292,14 @@ envelopes:
                 title: '📋 Course Withdrawal Request',
                 subtitle: 'Uses dropdown for course selection and any_one approval',
                 complexity: 'Intermediate',
-                code: `serviceId: SERV-004
+                code: `id: SERV-004
 type: course-withdrawal
 name: Course Withdrawal Request
 description: Request withdrawal from an enrolled course
 
 envelopes:
   request:
+    required: true
     parameters:
       studentId:
         type: String
@@ -1193,31 +1324,43 @@ envelopes:
         required: true
   
   approval:
-    type: any_one
-    approvers:
-      - advisor1@mapua.edu.ph
-      - advisor2@mapua.edu.ph
-      - advisor3@mapua.edu.ph
+    required: true
+    approvalRules:
+      type: any_one
+      requiredApprovers:
+        - advisor1@mapua.edu.ph
+        - advisor2@mapua.edu.ph
+        - advisor3@mapua.edu.ph
+      threshold: 1
     expiryHours: 48
   
   payment:
     required: false
   
   processing:
+    required: true
     tasks:
       - name: verify_enrollment
         type: api_call
         method: GET
         url: https://api.registrar.local/enrollment
+        timeout: 30000
+        retries: 1
+        successCodes: [200]
       - name: update_transcript
         type: api_call
         method: POST
         url: https://api.registrar.local/update-transcript
+        timeout: 30000
+        retries: 1
+        successCodes: [200, 201]
   
   delivery:
-    method: email
-    email:
-      templateId: withdrawal-confirmation
+    required: true
+    deliveryMethods:
+      email:
+        enabled: true
+        recipient: "{{email}}"
   
   feedback:
     required: false`,
@@ -1278,7 +1421,7 @@ envelopes:
               <Stack spacing={0.5} sx={{ fontSize: '0.9rem' }}>
                 <Box>1. Copy the YAML above (click copy button in top-right corner)</Box>
                 <Box>2. Paste into the <strong>Builder</strong> tab as your starting point</Box>
-                <Box>3. Modify serviceId, type, names, parameters for your service</Box>
+                <Box>3. Modify id, type, names, parameters for your service</Box>
                 <Box>4. Update approvers, charges, and processing tasks as needed</Box>
                 <Box>5. Create email templates in the <strong>Email Templates</strong> tab matching the templateId references</Box>
                 <Box>6. Click <strong>Validate & Save</strong> in the Builder</Box>
@@ -1287,11 +1430,11 @@ envelopes:
 
             <Alert severity="warning" icon={<WarningIcon />}>
               <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
-                ⚠️ Important: serviceId Format
+                ⚠️ Important: id Format
               </Typography>
               <Typography variant="body2">
-                Service IDs must follow the format: <code>SERV-###</code> (e.g., SERV-001, SERV-100).
-                This is automatically validated by the system.
+                Use <code>id</code> for the service identifier (legacy <code>serviceId</code> is still accepted).
+                Preferred format remains <code>SERV-###</code> (e.g., SERV-001, SERV-100).
               </Typography>
             </Alert>
           </Stack>

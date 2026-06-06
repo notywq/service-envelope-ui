@@ -383,9 +383,8 @@ export interface FeedbackResponse {
 }
 
 export interface FeedbackSubmitRequest {
-  requestId: string;
   token: string;
-  answers: Record<string, string | number | string[]>;
+  ratings: Record<string, number>;
   comments?: string;
 }
 

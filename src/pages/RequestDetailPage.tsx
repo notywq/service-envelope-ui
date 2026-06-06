@@ -36,14 +36,26 @@ import {
 } from '@mui/icons-material';
 import { api } from '../services/api';
 import { useNotification } from '../hooks/useNotification';
+import { buildDeliverySimulationPayload, getDeliverySimulationPresets, normalizeDeliveryMethod } from '../utils/deliverySimulationPresets';
 import type { ServiceRequest } from '../types';
 
 /**
  * Renders envelope content based on envelope type
  */
-const EnvelopeContentRenderer: React.FC<{ envelope: any; envelopeType: string }> = ({
+const EnvelopeContentRenderer: React.FC<{
+  envelope: any;
+  envelopeType: string;
+  resolvedDeliveryMethod?: string;
+  resolvedDeliveryStateLabel?: string;
+  resolvedDeliveryCodeName?: string;
+  resolvedDeliveryCodeNumber?: number;
+}> = ({
   envelope,
   envelopeType,
+  resolvedDeliveryMethod,
+  resolvedDeliveryStateLabel,
+  resolvedDeliveryCodeName,
+  resolvedDeliveryCodeNumber,
 }) => {
   console.log(`📦 Rendering ${envelopeType} envelope:`, envelope);
   
@@ -92,6 +104,7 @@ const EnvelopeContentRenderer: React.FC<{ envelope: any; envelopeType: string }>
     const approvers = envelope?.approvers;
     const requiresApproval = envelope?.requiresApproval;
     const status = envelope?.status;
+    const specificApprover = approvalRules?.specificApprover || approvalRules?.specificApproverId;
 
     // If approval is not required at service level, show that
     if (requiresApproval === false) {
@@ -160,13 +173,13 @@ const EnvelopeContentRenderer: React.FC<{ envelope: any; envelopeType: string }>
                     </TableCell>
                   </TableRow>
                 )}
-                {approvalRules.specificApproverId && (
+                {specificApprover && (
                   <TableRow>
                     <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
                       Approver
                     </TableCell>
                     <TableCell>
-                      <Chip label={approvalRules.specificApproverId} size="small" variant="outlined" />
+                      <Chip label={specificApprover} size="small" variant="outlined" />
                     </TableCell>
                   </TableRow>
                 )}
@@ -184,15 +197,18 @@ const EnvelopeContentRenderer: React.FC<{ envelope: any; envelopeType: string }>
             <Table size="small" sx={{ bgcolor: '#fafafa' }}>
               <TableHead>
                 <TableRow>
+                  <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Role</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Approval Token</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Approved At</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {approvers.map((approver: any, idx: number) => (
                   <TableRow key={idx}>
-                    <TableCell>{approver.role || approver.id}</TableCell>
+                    <TableCell sx={{ fontFamily: 'monospace' }}>{approver.email || approver.id || '-'}</TableCell>
+                    <TableCell>{approver.role || '-'}</TableCell>
                     <TableCell>
                       <Chip
                         label={approver.status || 'pending'}
@@ -206,6 +222,9 @@ const EnvelopeContentRenderer: React.FC<{ envelope: any; envelopeType: string }>
                         }
                         variant="outlined"
                       />
+                    </TableCell>
+                    <TableCell sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                      {approver.approvalToken || '-'}
                     </TableCell>
                     <TableCell sx={{ fontSize: '0.875rem' }}>
                       {approver.approvedAt ? new Date(approver.approvedAt).toLocaleString() : '-'}
@@ -256,42 +275,45 @@ const EnvelopeContentRenderer: React.FC<{ envelope: any; envelopeType: string }>
     }, 0);
 
     const currency = charges[0]?.currency || 'PHP';
+    const pending = paymentStatus === 'pending' || paymentStatus === 'pending_external';
 
     return (
-      <Stack spacing={2}>
+      <Stack spacing={2} sx={{ width: '100%', alignItems: 'flex-start', textAlign: 'left' }}>
         {/* Payment Provider */}
         {paymentProvider && (
-          <Box>
+          <Box sx={{ width: '100%' }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
               Payment Method
             </Typography>
-            <Typography variant="body2" sx={{ textTransform: 'uppercase', fontWeight: 500 }}>
-              {paymentProvider}
-            </Typography>
+            <Chip label={paymentProvider} size="small" variant="outlined" sx={{ textTransform: 'uppercase' }} />
           </Box>
         )}
 
         {/* Payment Status */}
-        <Box>
+        <Box sx={{ width: '100%' }}>
           <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
             Payment Status
           </Typography>
-          <Chip
-            label={paymentStatus?.replace(/_/g, ' ').toUpperCase()}
-            color={
-              paymentStatus === 'completed' || paymentStatus === 'paid'
-                ? 'success'
-                : paymentStatus === 'pending_external'
-                ? 'warning'
-                : 'default'
-            }
-            variant="outlined"
-            size="small"
-          />
+          <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
+            <Chip
+              label={paymentStatus?.replace(/_/g, ' ').toUpperCase()}
+              color={
+                paymentStatus === 'completed' || paymentStatus === 'paid'
+                  ? 'success'
+                  : pending
+                  ? 'warning'
+                  : 'default'
+              }
+              variant="outlined"
+              size="small"
+            />
+            <Chip label={`${charges.length} charge line(s)`} size="small" variant="outlined" />
+            <Chip label={`Total ${total.toLocaleString()} ${currency}`} size="small" color="primary" variant="filled" />
+          </Stack>
         </Box>
 
         {/* Charges */}
-        <Box>
+        <Box sx={{ width: '100%' }}>
           <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
             Charges ({charges.length})
           </Typography>
@@ -309,7 +331,7 @@ const EnvelopeContentRenderer: React.FC<{ envelope: any; envelopeType: string }>
             </TableHead>
             <TableBody>
               {charges.map((charge: any, idx: number) => (
-                <TableRow key={idx}>
+                <TableRow key={idx} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
                   <TableCell>{charge.item}</TableCell>
                   <TableCell align="right">{charge.quantity || 1}</TableCell>
                   <TableCell align="right">
@@ -327,6 +349,15 @@ const EnvelopeContentRenderer: React.FC<{ envelope: any; envelopeType: string }>
               </TableRow>
             </TableBody>
           </Table>
+          <Box sx={{ mt: 1.5, p: 1.5, borderRadius: 1, bgcolor: '#f8f9fa', border: '1px solid #e0e0e0' }}>
+            <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 0.5 }}>
+              Payment Summary
+            </Typography>
+            <Typography variant="body2" sx={{ fontWeight: 500 }}>
+              {paymentProvider ? `${paymentProvider} · ` : ''}
+              {pending ? 'Waiting for payment completion' : 'Payment details loaded from request envelope'}
+            </Typography>
+          </Box>
         </Box>
       </Stack>
     );
@@ -377,6 +408,51 @@ const EnvelopeContentRenderer: React.FC<{ envelope: any; envelopeType: string }>
                   {task.description}
                 </Typography>
               )}
+
+              <Table size="small" sx={{ mt: 1, bgcolor: '#fff' }}>
+                <TableBody>
+                  {task.method && (
+                    <TableRow>
+                      <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600, width: '25%' }}>Method</TableCell>
+                      <TableCell sx={{ fontFamily: 'monospace' }}>{task.method}</TableCell>
+                    </TableRow>
+                  )}
+                  {task.url && (
+                    <TableRow>
+                      <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>URL</TableCell>
+                      <TableCell sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>{task.url}</TableCell>
+                    </TableRow>
+                  )}
+                  {task.timeout !== undefined && (
+                    <TableRow>
+                      <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>Timeout</TableCell>
+                      <TableCell>{task.timeout} ms</TableCell>
+                    </TableRow>
+                  )}
+                  {task.retries !== undefined && (
+                    <TableRow>
+                      <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>Retries</TableCell>
+                      <TableCell>{task.retries}</TableCell>
+                    </TableRow>
+                  )}
+                  {task.successCodes && task.successCodes.length > 0 && (
+                    <TableRow>
+                      <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>Success Codes</TableCell>
+                      <TableCell>{task.successCodes.join(', ')}</TableCell>
+                    </TableRow>
+                  )}
+                  {task.payload && (
+                    <TableRow>
+                      <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>Payload</TableCell>
+                      <TableCell>
+                        <Box component="pre" sx={{ m: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '0.75rem' }}>
+                          {JSON.stringify(task.payload, null, 2)}
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
             </Box>
           ))}
         </Stack>
@@ -385,15 +461,15 @@ const EnvelopeContentRenderer: React.FC<{ envelope: any; envelopeType: string }>
   };
 
   const renderDeliveryEnvelope = () => {
-    const deliveryMethods = envelope?.deliveryMethods || {};
-    const selectedMethod = envelope?.method;
+    const deliveryMethods = envelope?.deliveryMethods || envelope?.availableMethods || {};
+    const selectedMethod = resolvedDeliveryMethod || envelope?.method || envelope?.currentMethod;
 
     // Show available delivery methods
     return (
-      <Stack spacing={2}>
+      <Stack spacing={2} sx={{ width: '100%', alignItems: 'flex-start', textAlign: 'left' }}>
         {/* Selected Delivery Method */}
         {selectedMethod && (
-          <Box>
+          <Box sx={{ width: '100%' }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
               Selected Delivery Method
             </Typography>
@@ -403,16 +479,17 @@ const EnvelopeContentRenderer: React.FC<{ envelope: any; envelopeType: string }>
 
         {/* Available Delivery Methods */}
         {Object.keys(deliveryMethods).length > 0 && (
-          <Box>
+          <Box sx={{ width: '100%' }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
               Available Delivery Methods
             </Typography>
-            <Stack spacing={1.5}>
+            <Stack spacing={1.5} sx={{ width: '100%', alignItems: 'flex-start' }}>
               {Object.entries(deliveryMethods).map(([method, details]: any) => (
                 details?.enabled && (
                   <Box
                     key={method}
                     sx={{
+                      width: '100%',
                       p: 1.5,
                       bgcolor: '#fafafa',
                       borderRadius: 1,
@@ -424,9 +501,20 @@ const EnvelopeContentRenderer: React.FC<{ envelope: any; envelopeType: string }>
                       {method.replace(/_/g, ' ')}
                     </Typography>
 
-                    {method === 'email' && details.recipient && (
-                      <Stack spacing={0.5}>
-                        <Box>
+                    {method === 'email' && (
+                      <Stack spacing={0.5} sx={{ width: '100%', alignItems: 'flex-start' }}>
+                        {details.emailTemplateId && (
+                          <Box sx={{ width: '100%' }}>
+                            <Typography variant="caption" color="textSecondary">
+                              Email Template
+                            </Typography>
+                            <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                              {details.emailTemplateId}
+                            </Typography>
+                          </Box>
+                        )}
+                        {details.recipient && (
+                        <Box sx={{ width: '100%' }}>
                           <Typography variant="caption" color="textSecondary">
                             Recipient
                           </Typography>
@@ -434,21 +522,32 @@ const EnvelopeContentRenderer: React.FC<{ envelope: any; envelopeType: string }>
                             {details.recipient}
                           </Typography>
                         </Box>
+                        )}
                         {details.subject && (
-                          <Box>
+                          <Box sx={{ width: '100%' }}>
                             <Typography variant="caption" color="textSecondary">
                               Subject
                             </Typography>
                             <Typography variant="body2">{details.subject}</Typography>
                           </Box>
                         )}
+                        {details.resolveAttachmentsFrom && (
+                          <Box sx={{ width: '100%' }}>
+                            <Typography variant="caption" color="textSecondary">
+                              Attachments
+                            </Typography>
+                            <Box component="pre" sx={{ m: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '0.75rem' }}>
+                              {JSON.stringify(details.resolveAttachmentsFrom, null, 2)}
+                            </Box>
+                          </Box>
+                        )}
                       </Stack>
                     )}
 
                     {method === 'physical_mail' && (
-                      <Stack spacing={0.5}>
+                      <Stack spacing={0.5} sx={{ width: '100%', alignItems: 'flex-start' }}>
                         {details.address && (
-                          <Box>
+                          <Box sx={{ width: '100%' }}>
                             <Typography variant="caption" color="textSecondary">
                               Address
                             </Typography>
@@ -456,7 +555,7 @@ const EnvelopeContentRenderer: React.FC<{ envelope: any; envelopeType: string }>
                           </Box>
                         )}
                         {details.carrier && (
-                          <Box>
+                          <Box sx={{ width: '100%' }}>
                             <Typography variant="caption" color="textSecondary">
                               Carrier
                             </Typography>
@@ -464,7 +563,7 @@ const EnvelopeContentRenderer: React.FC<{ envelope: any; envelopeType: string }>
                           </Box>
                         )}
                         {details.estimatedDays && (
-                          <Box>
+                          <Box sx={{ width: '100%' }}>
                             <Typography variant="caption" color="textSecondary">
                               Estimated Days
                             </Typography>
@@ -475,9 +574,9 @@ const EnvelopeContentRenderer: React.FC<{ envelope: any; envelopeType: string }>
                     )}
 
                     {method === 'pickup' && (
-                      <Stack spacing={0.5}>
+                      <Stack spacing={0.5} sx={{ width: '100%', alignItems: 'flex-start' }}>
                         {details.location && (
-                          <Box>
+                          <Box sx={{ width: '100%' }}>
                             <Typography variant="caption" color="textSecondary">
                               Location
                             </Typography>
@@ -485,7 +584,7 @@ const EnvelopeContentRenderer: React.FC<{ envelope: any; envelopeType: string }>
                           </Box>
                         )}
                         {details.hoursOfOperation && (
-                          <Box>
+                          <Box sx={{ width: '100%' }}>
                             <Typography variant="caption" color="textSecondary">
                               Hours
                             </Typography>
@@ -493,11 +592,21 @@ const EnvelopeContentRenderer: React.FC<{ envelope: any; envelopeType: string }>
                           </Box>
                         )}
                         {details.pickupDeadlineDays && (
-                          <Box>
+                          <Box sx={{ width: '100%' }}>
                             <Typography variant="caption" color="textSecondary">
                               Pickup Deadline
                             </Typography>
                             <Typography variant="body2">{details.pickupDeadlineDays} days</Typography>
+                          </Box>
+                        )}
+                        {details.notificationTemplateId && (
+                          <Box sx={{ width: '100%' }}>
+                            <Typography variant="caption" color="textSecondary">
+                              Notification Template
+                            </Typography>
+                            <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                              {details.notificationTemplateId}
+                            </Typography>
                           </Box>
                         )}
                       </Stack>
@@ -515,18 +624,29 @@ const EnvelopeContentRenderer: React.FC<{ envelope: any; envelopeType: string }>
             <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
               Status
             </Typography>
-            <Chip
-              label={envelope.status?.replace(/_/g, ' ').toUpperCase()}
-              color={
-                envelope.status === 'completed'
-                  ? 'success'
-                  : envelope.status === 'pending'
-                  ? 'warning'
-                  : 'default'
-              }
-              variant="outlined"
-              size="small"
-            />
+            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
+              <Chip
+                label={(resolvedDeliveryStateLabel || envelope.status || 'pending').replace(/_/g, ' ').toUpperCase()}
+                color={
+                  (resolvedDeliveryCodeName === 'email_sent' ||
+                    resolvedDeliveryCodeName === 'delivered' ||
+                    resolvedDeliveryCodeName === 'picked_up' ||
+                    envelope.status === 'completed')
+                    ? 'success'
+                    : envelope.status === 'pending'
+                    ? 'warning'
+                    : 'default'
+                }
+                variant="outlined"
+                size="small"
+              />
+              {resolvedDeliveryCodeName && (
+                <Chip label={resolvedDeliveryCodeName} size="small" variant="outlined" />
+              )}
+              {typeof resolvedDeliveryCodeNumber === 'number' && (
+                <Chip label={`Code ${resolvedDeliveryCodeNumber}`} size="small" variant="outlined" />
+              )}
+            </Stack>
           </Box>
         )}
 
@@ -547,6 +667,7 @@ const EnvelopeContentRenderer: React.FC<{ envelope: any; envelopeType: string }>
     const isRequired = envelope?.required;
     const expiryDays = envelope?.expiryDays;
     const reminderDaysBefore = envelope?.reminderDaysBefore;
+    const feedbackStatus = envelope?.status;
 
     // Show if feedback is not required
     if (!isRequired) {
@@ -558,9 +679,9 @@ const EnvelopeContentRenderer: React.FC<{ envelope: any; envelopeType: string }>
     }
 
     return (
-      <Stack spacing={2}>
+      <Stack spacing={2} sx={{ width: '100%', alignItems: 'flex-start', textAlign: 'left' }}>
         {/* Feedback Configuration */}
-        <Box>
+        <Box sx={{ width: '100%' }}>
           <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
             Feedback Configuration
           </Typography>
@@ -596,33 +717,142 @@ const EnvelopeContentRenderer: React.FC<{ envelope: any; envelopeType: string }>
           </Table>
         </Box>
 
-        {/* Feedback Received */}
-        {feedback && Object.keys(feedback).length > 0 ? (
-          <Box>
-            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-              Feedback Received
-            </Typography>
-            <Box component="pre" sx={{ overflow: 'auto', bgcolor: '#f5f5f5', p: 1.5, borderRadius: 1, fontSize: '0.75rem' }}>
-              {JSON.stringify(feedback, null, 2)}
-            </Box>
-          </Box>
-        ) : (
-          <Box>
-            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-              Status
-            </Typography>
+        <Box sx={{ width: '100%', p: 1.5, borderRadius: 1, bgcolor: '#f8f9fa', border: '1px solid #e0e0e0' }}>
+          <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 0.5 }}>
+            Feedback Window
+          </Typography>
+          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+            {expiryDays ? `${expiryDays} day expiry` : 'No expiry configured'}
+            {reminderDaysBefore ? ` · Reminder ${reminderDaysBefore} day(s) before expiry` : ''}
+          </Typography>
+        </Box>
+
+        <Box sx={{ width: '100%' }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+            Status
+          </Typography>
+          <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
             <Chip
-              label={envelope?.status?.replace(/_/g, ' ').toUpperCase() || 'PENDING'}
-              color={
-                envelope?.status === 'completed'
-                  ? 'success'
-                  : envelope?.status === 'pending'
-                  ? 'warning'
-                  : 'default'
-              }
+              label={feedbackStatus?.replace(/_/g, ' ').toUpperCase() || 'PENDING'}
+              color={feedbackStatus === 'completed' ? 'success' : feedbackStatus === 'pending' ? 'warning' : 'default'}
               variant="outlined"
               size="small"
             />
+            {envelope?.notificationRequired && <Chip label="Notifications Enabled" size="small" color="info" variant="outlined" />}
+            {envelope?.emailTemplateId && <Chip label={envelope.emailTemplateId} size="small" variant="outlined" />}
+          </Stack>
+        </Box>
+
+        {/* Feedback Received */}
+        {feedback && Object.keys(feedback).length > 0 ? (
+          <Box sx={{ width: '100%' }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+              Feedback Received
+            </Typography>
+            {(() => {
+              const ratings =
+                feedback?.ratings && typeof feedback.ratings === 'object' && !Array.isArray(feedback.ratings)
+                  ? feedback.ratings
+                  : null;
+              const comments =
+                typeof feedback?.comments === 'string'
+                  ? feedback.comments
+                  : typeof feedback?.comment === 'string'
+                  ? feedback.comment
+                  : '';
+              const metadataEntries = Object.entries(feedback).filter(
+                ([key]) => key !== 'ratings' && key !== 'comments' && key !== 'comment'
+              );
+              const formatLabel = (key: string) =>
+                key
+                  .replace(/_/g, ' ')
+                  .replace(/\b\w/g, (ch) => ch.toUpperCase());
+
+              return (
+                <Stack spacing={2} sx={{ width: '100%' }}>
+                  {ratings && Object.keys(ratings).length > 0 && (
+                    <Box sx={{ p: 1.5, borderRadius: 1, bgcolor: '#f8f9fa', border: '1px solid #e0e0e0' }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1.25 }}>
+                        Ratings
+                      </Typography>
+                      <Stack spacing={1}>
+                        {Object.entries(ratings).map(([metric, value]) => {
+                          const score = typeof value === 'number' ? value : Number(value);
+                          const chipColor = Number.isFinite(score)
+                            ? score >= 4
+                              ? 'success'
+                              : score >= 3
+                              ? 'warning'
+                              : 'error'
+                            : 'default';
+                          return (
+                            <Box
+                              key={metric}
+                              sx={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                p: 1,
+                                borderRadius: 1,
+                                bgcolor: '#fff',
+                                border: '1px solid #eceff1',
+                              }}
+                            >
+                              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                {formatLabel(metric)}
+                              </Typography>
+                              <Chip
+                                size="small"
+                                color={chipColor as any}
+                                variant="outlined"
+                                label={Number.isFinite(score) ? `${score}` : String(value)}
+                              />
+                            </Box>
+                          );
+                        })}
+                      </Stack>
+                    </Box>
+                  )}
+
+                  {comments && (
+                    <Box sx={{ p: 1.5, borderRadius: 1, bgcolor: '#f8f9fa', border: '1px solid #e0e0e0' }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                        Comments
+                      </Typography>
+                      <Typography variant="body2">{comments}</Typography>
+                    </Box>
+                  )}
+
+                  {metadataEntries.length > 0 && (
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                        Additional Details
+                      </Typography>
+                      <Table size="small" sx={{ bgcolor: '#fafafa' }}>
+                        <TableBody>
+                          {metadataEntries.map(([key, value]) => (
+                            <TableRow key={key}>
+                              <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600, width: '35%' }}>
+                                {formatLabel(key)}
+                              </TableCell>
+                              <TableCell sx={{ wordBreak: 'break-word' }}>
+                                {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </Box>
+                  )}
+                </Stack>
+              );
+            })()}
+          </Box>
+        ) : (
+          <Box sx={{ width: '100%' }}>
+            <Typography variant="body2" color="textSecondary">
+              No feedback submitted yet.
+            </Typography>
           </Box>
         )}
       </Stack>
@@ -663,6 +893,36 @@ export const RequestDetailPage: React.FC = () => {
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [simulatingDelivery, setSimulatingDelivery] = useState(false);
+  const [deliveryMethodInfo, setDeliveryMethodInfo] = useState<any>(null);
+  const [deliveryCurrent, setDeliveryCurrent] = useState<any>(null);
+
+  const resolveDeliveryState = (method: string, current: any): { label: string; isTerminal: boolean } | null => {
+    const normalized = normalizeDeliveryMethod(method);
+    if (!normalized) return null;
+
+    const codeName = (current?.code_name || '').toString().toLowerCase();
+    const codeNumber = typeof current?.code_number === 'number' ? current.code_number : undefined;
+
+    if (normalized === 'email') {
+      if (codeName === 'email_sent' || codeNumber === 1) return { label: 'sent', isTerminal: true };
+      if (codeName === 'email_pending' || codeNumber === 0) return { label: 'pending', isTerminal: false };
+    }
+
+    if (normalized === 'physical_mail') {
+      if (codeName === 'delivered' || codeNumber === 3) return { label: 'delivered', isTerminal: true };
+      if (codeName === 'out_for_delivery' || codeNumber === 2) return { label: 'out_for_delivery', isTerminal: false };
+      if (codeName === 'ready_to_deliver' || codeNumber === 1) return { label: 'ready_to_deliver', isTerminal: false };
+      if (codeName === 'preparing' || codeNumber === 0) return { label: 'preparing', isTerminal: false };
+    }
+
+    if (normalized === 'pickup') {
+      if (codeName === 'picked_up' || codeNumber === 2) return { label: 'picked_up', isTerminal: true };
+      if (codeName === 'ready_for_pickup' || codeNumber === 1) return { label: 'ready_for_pickup', isTerminal: false };
+      if (codeName === 'preparing' || codeNumber === 0) return { label: 'preparing', isTerminal: false };
+    }
+
+    return null;
+  };
 
   useEffect(() => {
     if (!requestId) {
@@ -675,8 +935,14 @@ export const RequestDetailPage: React.FC = () => {
       try {
         setLoading(true);
         setError('');
-        const data = await api.getRequest(requestId);
+        const [data, methodData, currentData] = await Promise.all([
+          api.getRequest(requestId),
+          api.getDeliveryMethod(requestId).catch(() => null),
+          api.getDeliveryStatus(requestId).catch(() => null),
+        ]);
         setRequest(data);
+        setDeliveryMethodInfo(methodData);
+        setDeliveryCurrent(currentData);
       } catch (err: any) {
         setError(err.response?.data?.error || 'Failed to load request');
       } finally {
@@ -690,8 +956,14 @@ export const RequestDetailPage: React.FC = () => {
   const handleRefresh = async () => {
     if (!requestId) return;
     try {
-      const data = await api.getRequest(requestId);
+      const [data, methodData, currentData] = await Promise.all([
+        api.getRequest(requestId),
+        api.getDeliveryMethod(requestId).catch(() => null),
+        api.getDeliveryStatus(requestId).catch(() => null),
+      ]);
       setRequest(data);
+      setDeliveryMethodInfo(methodData);
+      setDeliveryCurrent(currentData);
       addNotification('Request refreshed', 'success');
     } catch (err: any) {
       addNotification('Failed to refresh request', 'error');
@@ -724,38 +996,6 @@ export const RequestDetailPage: React.FC = () => {
     } finally {
       setActionLoading(false);
       setCancelDialogOpen(false);
-    }
-  };
-
-  const handleSimulateDelivery = async () => {
-    if (!requestId) return;
-    try {
-      setSimulatingDelivery(true);
-      // Get current status and increment (0-3)
-      const currentStatus = 0; // Start from step 0
-      const nextStatus = Math.min(currentStatus + 1, 3); // Max status is 3 (Delivered)
-
-      console.log(`Simulating delivery: ${currentStatus} → ${nextStatus}`);
-
-      await api.updateDeliveryStatus(requestId, { status: nextStatus });
-
-      addNotification(
-        nextStatus === 3
-          ? 'Delivery completed! 🎉'
-          : `Delivery status updated to step ${nextStatus + 1}`,
-        'success'
-      );
-
-      // Reload request data
-      handleRefresh();
-    } catch (err: any) {
-      console.error('Error simulating delivery:', err);
-      addNotification(
-        err.response?.data?.error || 'Failed to update delivery status',
-        'error'
-      );
-    } finally {
-      setSimulatingDelivery(false);
     }
   };
 
@@ -793,6 +1033,50 @@ export const RequestDetailPage: React.FC = () => {
     return <Alert severity="error">{error || 'Request not found'}</Alert>;
   }
 
+  const deliveryEnvelope = (request.envelopes as any)?.delivery || {};
+  const requestDeliveryMethod = normalizeDeliveryMethod(
+    deliveryMethodInfo?.deliveryMethod ||
+      deliveryMethodInfo?.method ||
+      deliveryMethodInfo?.type ||
+      deliveryEnvelope.deliveryMethod ||
+      deliveryEnvelope.method ||
+      deliveryEnvelope.currentMethod ||
+      deliveryEnvelope.details?.deliveryMethod
+  );
+  const resolvedDeliveryState = resolveDeliveryState(requestDeliveryMethod, deliveryCurrent);
+  const simulationPresets = getDeliverySimulationPresets(requestDeliveryMethod);
+
+  const handleSimulatePreset = async (preset: (typeof simulationPresets)[number]) => {
+    if (!requestId || !requestDeliveryMethod) return;
+
+    try {
+      setSimulatingDelivery(true);
+      const payload = buildDeliverySimulationPayload(requestDeliveryMethod, preset);
+
+      setDeliveryCurrent((prev: any) => ({
+        ...(prev || {}),
+        code_number: payload.code_number,
+        code_name: payload.code_name,
+      }));
+
+      await api.updateDeliveryStatus(requestId, {
+        code_number: payload.code_number,
+        code_name: payload.code_name,
+        notes: payload.notes,
+        location: payload.location,
+        trackingId: payload.trackingId,
+      });
+
+      addNotification(`${preset.label} applied for ${requestDeliveryMethod.replace(/_/g, ' ')}`, 'success');
+      handleRefresh();
+    } catch (err: any) {
+      console.error('Error simulating delivery:', err);
+      addNotification(err.response?.data?.error || 'Failed to update delivery status', 'error');
+    } finally {
+      setSimulatingDelivery(false);
+    }
+  };
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       {/* Header */}
@@ -825,21 +1109,29 @@ export const RequestDetailPage: React.FC = () => {
               Resume
             </Button>
           )}
-          <Button
-            variant="contained"
-            color="success"
-            onClick={handleSimulateDelivery}
-            disabled={simulatingDelivery || request.status === 'completed'}
-            sx={{
-              opacity: request.status === 'completed' ? 0.5 : 1,
-            }}
-          >
-            {simulatingDelivery
-              ? 'Simulating...'
-              : request.status === 'completed'
-                ? 'Delivery Complete'
-                : 'Simulate Delivery'}
-          </Button>
+          {simulationPresets.length > 0 ? (
+            simulationPresets.map((preset) => (
+              <Button
+                key={preset.buttonKey}
+                variant="contained"
+                color="success"
+                onClick={() => handleSimulatePreset(preset)}
+                disabled={simulatingDelivery || request.status === 'completed' || !!resolvedDeliveryState?.isTerminal}
+                sx={{ opacity: request.status === 'completed' || resolvedDeliveryState?.isTerminal ? 0.5 : 1 }}
+              >
+                {simulatingDelivery ? 'Simulating...' : preset.label}
+              </Button>
+            ))
+          ) : (
+            <Button
+              variant="contained"
+              color="success"
+              disabled
+              sx={{ opacity: request.status === 'completed' ? 0.5 : 1 }}
+            >
+              No Delivery Method
+            </Button>
+          )}
           <Button
             variant="outlined"
             color="error"
@@ -946,7 +1238,14 @@ export const RequestDetailPage: React.FC = () => {
                 />
               </AccordionSummary>
               <AccordionDetails>
-                <EnvelopeContentRenderer envelope={envelope} envelopeType={key} />
+                <EnvelopeContentRenderer
+                  envelope={envelope}
+                  envelopeType={key}
+                  resolvedDeliveryMethod={key === 'delivery' ? requestDeliveryMethod : undefined}
+                  resolvedDeliveryStateLabel={key === 'delivery' ? resolvedDeliveryState?.label : undefined}
+                  resolvedDeliveryCodeName={key === 'delivery' ? deliveryCurrent?.code_name : undefined}
+                  resolvedDeliveryCodeNumber={key === 'delivery' ? deliveryCurrent?.code_number : undefined}
+                />
               </AccordionDetails>
             </Accordion>
           ))}

@@ -175,8 +175,11 @@ class ApiClient {
     name: string;
     yaml: string;
     type: string;
-    serviceId: string;
+    id?: string;
+    serviceId?: string;
     initiator: string;
+    schemaVersion?: string;
+    validatedAt?: string;
   }) {
     const response = await this.client.post('/api/admin/services', data);
     return response.data;
@@ -188,8 +191,11 @@ class ApiClient {
       name: string;
       yaml: string;
       type: string;
-      serviceId: string;
+      id?: string;
+      serviceId?: string;
       initiator: string;
+      schemaVersion?: string;
+      validatedAt?: string;
     }
   ) {
     const response = await this.client.put(`/api/admin/services/${serviceId}`, data);
@@ -289,17 +295,19 @@ class ApiClient {
   // ========== FEEDBACK ENDPOINTS (TOKEN-BASED, PUBLIC) ==========
 
   async getFeedbackByToken(token: string) {
-    const response = await this.client.get(`/api/feedback/${token}`);
+    const response = await this.client.get(`/api/feedback/token/${token}`);
     return response.data;
   }
 
   async submitFeedback(data: {
-    requestId: string;
     token: string;
-    answers: Record<string, string | number | string[]>;
+    ratings: Record<string, number>;
     comments?: string;
   }) {
-    const response = await this.client.post(`/api/feedback/submit`, data);
+    const response = await this.client.post(`/api/feedback/token/${data.token}/submit`, {
+      ratings: data.ratings,
+      comments: data.comments || '',
+    });
     return response.data;
   }
 
@@ -360,7 +368,7 @@ class ApiClient {
     return response.data;
   }
 
-  async updateDeliveryStatus(requestId: string, data: { status: number | string; notes?: string; location?: string; trackingId?: string }) {
+  async updateDeliveryStatus(requestId: string, data: { status?: number | string; code_number?: number; code_name?: string; notes?: string; location?: string; trackingId?: string }) {
     const response = await this.client.post(`/api/delivery-status/${requestId}`, data);
     return response.data;
   }

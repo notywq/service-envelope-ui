@@ -549,13 +549,13 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/feedback/{requestId}/submit:
+  /api/feedback/token/{token}/submit:
     post:
       tags: [Feedback]
       summary: Submit Feedback
       operationId: submitFeedback
       parameters:
-        - name: requestId
+        - name: token
           in: path
           required: true
           schema:
@@ -582,16 +582,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServiceRequest'
+        '409':
+          description: Feedback token already used
+        '410':
+          description: Feedback token expired
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/feedback/{requestId}:
+  /api/feedback/token/{token}:
     get:
       tags: [Feedback]
       summary: Get Feedback
       operationId: getFeedback
       parameters:
-        - name: requestId
+        - name: token
           in: path
           required: true
           schema:
@@ -606,10 +610,22 @@ paths:
                 properties:
                   requestId:
                     type: string
+                  token:
+                    type: string
+                  status:
+                    type: string
+                    enum: [pending, submitted, expired]
+                  expiresAt:
+                    type: string
+                    format: date-time
                   rating:
                     type: integer
                   comment:
                     type: string
+        '409':
+          description: Feedback token already used
+        '410':
+          description: Feedback token expired
         '404':
           $ref: '#/components/responses/NotFound'
 

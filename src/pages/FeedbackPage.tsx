@@ -18,13 +18,9 @@ import {
   Alert,
   Rating,
   TextField,
-  FormControl,
-  FormLabel,
-  RadioGroup,
-  FormControlLabel,
-  Radio,
   Paper,
   Divider,
+  Chip,
 } from '@mui/material';
 import {
   ThumbUpAlt as ThumbUpIcon,
@@ -34,6 +30,12 @@ import {
 import { api } from '../services/api';
 import { useNotification } from '../hooks/useNotification';
 import type { FeedbackResponse, FeedbackSubmitRequest } from '../types';
+
+const feedbackMetrics = [
+  { key: 'overall', label: 'Overall Experience', hint: 'How satisfied are you with the service overall?' },
+  { key: 'speed', label: 'Speed', hint: 'How fast was the end-to-end processing?' },
+  { key: 'clarity_of_instructions', label: 'Instruction Clarity', hint: 'Were the instructions clear and easy to follow?' },
+] as const;
 
 export const FeedbackPage: React.FC = () => {
   const { token } = useParams<{ token: string }>();
@@ -45,7 +47,13 @@ export const FeedbackPage: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState(false);
-  const [answers, setAnswers] = useState<Record<string, string | number | string[]>>({});
+  const [closingInSeconds, setClosingInSeconds] = useState(10);
+  const [ratings, setRatings] = useState<Record<string, number>>({
+    overall: 0,
+    speed: 0,
+    clarity_of_instructions: 0,
+  });
+  const [comments, setComments] = useState('');
 
   useEffect(() => {
     const loadFeedback = async () => {
@@ -60,28 +68,91 @@ export const FeedbackPage: React.FC = () => {
         setError('');
         // Fetch feedback using token
         const response = await api.getFeedbackByToken(token);
+
+        const tokenStatus = response.tokenStatus || {};
+        const tokenIsUsed = tokenStatus.isUsed === true;
+        const tokenIsExpired = tokenStatus.isExpired === true;
+        const normalizedStatus: FeedbackResponse['status'] = tokenIsExpired
+          ? 'expired'
+          : tokenIsUsed
+          ? 'submitted'
+          : response.status === 'expired' || response.status === 'submitted'
+          ? response.status
+          : 'pending';
+
+        const fallbackQuestions = [
+          {
+            id: 'rating',
+            type: 'rating' as const,
+            question: 'How satisfied are you with this service?',
+            required: true,
+            scale: { min: 1, max: 5, minLabel: 'Poor', maxLabel: 'Excellent' },
+          },
+          {
+            id: 'comment',
+            type: 'text' as const,
+            question: 'Tell us more about your experience',
+            required: false,
+          },
+        ];
+
+        const normalizedResponse: FeedbackResponse = {
+          requestId: response.requestId || tokenStatus.requestId || 'Unknown Request',
+          token,
+          expiresAt:
+            tokenStatus.expiresAt ||
+            response.expiresAt ||
+            new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          questions: Array.isArray(response.questions) && response.questions.length > 0 ? response.questions : fallbackQuestions,
+          answers: response.answers || tokenStatus.submittedFeedback || undefined,
+          submittedAt: response.submittedAt,
+          status: normalizedStatus,
+        };
         
         // Check if expired
-        if (response.status === 'expired') {
+        if (normalizedResponse.status === 'expired') {
           setError('This feedback survey has expired. Please contact support for assistance.');
-          setFeedbackData(response);
+          setFeedbackData(normalizedResponse);
           return;
         }
 
-        setFeedbackData(response);
-        // Initialize answers with empty values
-        const initialAnswers: Record<string, string | number | string[]> = {};
-        response.questions.forEach((q) => {
-          if (q.type === 'multiple-choice') {
-            initialAnswers[q.id] = [];
-          } else {
-            initialAnswers[q.id] = '';
-          }
+        if (normalizedResponse.status === 'submitted') {
+          setError('This feedback link has already been used.');
+          setFeedbackData(normalizedResponse);
+          return;
+        }
+
+        setFeedbackData(normalizedResponse);
+
+        const existingRatings = response.ratings || tokenStatus.submittedFeedback?.ratings || {};
+        setRatings({
+          overall: typeof existingRatings.overall === 'number' ? existingRatings.overall : 0,
+          speed: typeof existingRatings.speed === 'number' ? existingRatings.speed : 0,
+          clarity_of_instructions:
+            typeof existingRatings.clarity_of_instructions === 'number'
+              ? existingRatings.clarity_of_instructions
+              : 0,
         });
-        setAnswers(initialAnswers);
+
+        const existingComments =
+          typeof response.comments === 'string'
+            ? response.comments
+            : typeof tokenStatus.submittedFeedback?.comments === 'string'
+            ? tokenStatus.submittedFeedback.comments
+            : '';
+        setComments(existingComments);
       } catch (err: any) {
         console.error('Error loading feedback:', err);
-        setError(err.response?.data?.error || 'Failed to load feedback survey. The link may have expired.');
+        const status = err.response?.status;
+        if (status === 404) {
+          setError('This feedback link is invalid or no longer exists.');
+        } else if (status === 410) {
+          setError('This feedback link has expired.');
+        } else if (status === 409) {
+          setError('This feedback link has already been used.');
+        } else {
+          setError(err.response?.data?.error || 'Failed to load feedback survey.');
+        }
       } finally {
         setLoading(false);
       }
@@ -90,34 +161,36 @@ export const FeedbackPage: React.FC = () => {
     loadFeedback();
   }, [token]);
 
-  const handleAnswerChange = (questionId: string, value: any) => {
-    setAnswers((prev) => ({
+  useEffect(() => {
+    if (!submitted) return;
+
+    setClosingInSeconds(10);
+    const interval = setInterval(() => {
+      setClosingInSeconds((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          // May be blocked by browser unless opened by script; still attempt.
+          window.close();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [submitted]);
+
+  const handleRatingChange = (key: string, value: number | null) => {
+    setRatings((prev) => ({
       ...prev,
-      [questionId]: value,
+      [key]: value || 0,
     }));
   };
 
-  const handleMultipleChoiceChange = (questionId: string, optionValue: string) => {
-    setAnswers((prev) => {
-      const current = Array.isArray(prev[questionId]) ? prev[questionId] as string[] : [];
-      const newValue = current.includes(optionValue)
-        ? current.filter((v) => v !== optionValue)
-        : [...current, optionValue];
-      return { ...prev, [questionId]: newValue };
-    });
-  };
-
   const validateAnswers = (): boolean => {
-    if (!feedbackData) return false;
-
-    for (const question of feedbackData.questions) {
-      if (question.required) {
-        const answer = answers[question.id];
-        if (answer === '' || answer === null || (Array.isArray(answer) && answer.length === 0)) {
-          addNotification(`Please answer: ${question.question}`, 'warning');
-          return false;
-        }
-      }
+    if (ratings.overall <= 0) {
+      addNotification('Please provide an overall rating before submitting.', 'warning');
+      return false;
     }
     return true;
   };
@@ -130,18 +203,37 @@ export const FeedbackPage: React.FC = () => {
       return;
     }
 
+    if (feedbackData.status === 'expired') {
+      setError('This feedback token is already expired. Feedback cannot be submitted.');
+      addNotification('Feedback token expired', 'error');
+      return;
+    }
+
+    if (feedbackData.status === 'submitted') {
+      setError('This feedback token has already been used.');
+      addNotification('Feedback already submitted for this token', 'warning');
+      return;
+    }
+
     try {
       setSubmitting(true);
       const submitRequest: FeedbackSubmitRequest = {
-        requestId: feedbackData.requestId,
         token,
-        answers,
+        ratings,
+        comments,
       };
       await api.submitFeedback(submitRequest);
       setSubmitted(true);
       addNotification('Thank you! Your feedback has been submitted successfully.', 'success');
-      setTimeout(() => navigate('/'), 5000); // Redirect after 5 seconds
     } catch (err: any) {
+      const status = err.response?.status;
+      if (status === 404) {
+        setError('This feedback link is invalid or no longer exists.');
+      } else if (status === 410) {
+        setError('This feedback link has expired.');
+      } else if (status === 409) {
+        setError('This feedback has already been submitted using this link.');
+      }
       addNotification(
         err.response?.data?.error || 'Failed to submit feedback. Please try again.',
         'error'
@@ -172,8 +264,14 @@ export const FeedbackPage: React.FC = () => {
               Your feedback has been submitted successfully.
             </Typography>
             <Typography variant="body2" color="textSecondary" sx={{ mt: 2 }}>
-              A confirmation email has been sent to you. You will be redirected shortly...
+              This page is token-only and will close automatically.
             </Typography>
+            <Typography variant="body2" color="textSecondary" sx={{ mt: 1, mb: 3 }}>
+              Closes automatically after {closingInSeconds} second{closingInSeconds === 1 ? '' : 's'}.
+            </Typography>
+            <Button variant="contained" onClick={() => window.close()}>
+              Close This Window
+            </Button>
           </CardContent>
         </Card>
       </Box>
@@ -200,6 +298,7 @@ export const FeedbackPage: React.FC = () => {
   }
 
   const isExpired = feedbackData.status === 'expired';
+  const isAlreadySubmitted = feedbackData.status === 'submitted';
   const expiresDate = new Date(feedbackData.expiresAt);
   const today = new Date();
   const daysUntilExpiry = Math.ceil((expiresDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
@@ -207,7 +306,15 @@ export const FeedbackPage: React.FC = () => {
   return (
     <Box sx={{ maxWidth: 800, mx: 'auto', py: 4 }}>
       {/* Header Card */}
-      <Paper elevation={1} sx={{ p: 3, mb: 3, backgroundColor: 'primary.light' }}>
+      <Paper
+        elevation={1}
+        sx={{
+          p: 3,
+          mb: 3,
+          background: 'linear-gradient(120deg, #e3f2fd 0%, #f3e5f5 100%)',
+          border: '1px solid #d0e2ff',
+        }}
+      >
         <Stack spacing={2}>
           <Box>
             <Typography variant="h4" gutterBottom>
@@ -252,7 +359,13 @@ export const FeedbackPage: React.FC = () => {
 
           {isExpired && (
             <Alert severity="error">
-              This survey has expired. We can no longer accept feedback for this request.
+              This feedback token is already expired. We can no longer accept feedback for this request.
+            </Alert>
+          )}
+
+          {isAlreadySubmitted && (
+            <Alert severity="warning">
+              This feedback link has already been used. Thank you for your earlier response.
             </Alert>
           )}
         </Stack>
@@ -262,68 +375,60 @@ export const FeedbackPage: React.FC = () => {
       <Card>
         <CardContent>
           <Stack spacing={4}>
-            {feedbackData.questions.map((question) => (
-              <Box key={question.id}>
-                <FormControl fullWidth disabled={isExpired}>
-                  <FormLabel required={question.required ?? false} sx={{ mb: 2 }}>
-                    {question.question}
-                  </FormLabel>
+            <Box>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 700 }}>
+                Quick Service Ratings
+              </Typography>
+              <Stack spacing={2}>
+                {feedbackMetrics.map((metric) => (
+                  <Card
+                    key={metric.key}
+                    variant="outlined"
+                    sx={{
+                      borderColor: '#d9e4ff',
+                      background: 'linear-gradient(180deg, #ffffff 0%, #f9fbff 100%)',
+                    }}
+                  >
+                    <CardContent sx={{ py: 2 }}>
+                      <Stack direction="row" spacing={2} sx={{ justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <Box>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                            {metric.label}
+                          </Typography>
+                          <Typography variant="caption" color="textSecondary">
+                            {metric.hint}
+                          </Typography>
+                        </Box>
+                        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                          <Rating
+                            value={ratings[metric.key] || 0}
+                            onChange={(_, value) => handleRatingChange(metric.key, value)}
+                            size="large"
+                            disabled={isExpired || isAlreadySubmitted || submitting}
+                          />
+                          <Chip label={`${ratings[metric.key] || 0}/5`} size="small" color="primary" variant="outlined" />
+                        </Stack>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                ))}
+              </Stack>
+            </Box>
 
-                  {/* Rating Question */}
-                  {question.type === 'rating' && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <Rating
-                        {...({
-                          value: answers[question.id] || 0,
-                          onChange: (_, value: any) => handleAnswerChange(question.id, value),
-                          size: 'large',
-                          disabled: isExpired,
-                        } as any)}
-                      />
-                      {question.scale?.maxLabel && (
-                        <Typography variant="caption" color="textSecondary">
-                          {question.scale.minLabel} - {question.scale.maxLabel}
-                        </Typography>
-                      )}
-                    </Box>
-                  )}
-
-                  {/* Text Question */}
-                  {question.type === 'text' && (
-                    <TextField
-                      fullWidth
-                      multiline
-                      rows={3}
-                      placeholder="Please share your feedback..."
-                      value={answers[question.id] || ''}
-                      onChange={(e) => handleAnswerChange(question.id, e.target.value)}
-                      disabled={isExpired}
-                    />
-                  )}
-
-                  {/* Multiple Choice Question */}
-                  {question.type === 'multiple-choice' && (
-                    <RadioGroup
-                      value={
-                        Array.isArray(answers[question.id]) && (answers[question.id] as any[]).length === 1
-                          ? (answers[question.id] as any[])[0]
-                          : ''
-                      }
-                      onChange={(e) => handleMultipleChoiceChange(question.id, e.target.value)}
-                    >
-                      {question.options?.map((option) => (
-                        <FormControlLabel
-                          key={option}
-                          value={option}
-                          control={<Radio disabled={isExpired} />}
-                          label={option}
-                        />
-                      ))}
-                    </RadioGroup>
-                  )}
-                </FormControl>
-              </Box>
-            ))}
+            <Box>
+              <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 700 }}>
+                Comments
+              </Typography>
+              <TextField
+                fullWidth
+                multiline
+                minRows={4}
+                placeholder="Process was smooth and quick. Delivery instructions were clear..."
+                value={comments}
+                onChange={(e) => setComments(e.target.value)}
+                disabled={isExpired || isAlreadySubmitted || submitting}
+              />
+            </Box>
 
             <Divider />
 
@@ -336,9 +441,9 @@ export const FeedbackPage: React.FC = () => {
                 variant="contained"
                 startIcon={submitting ? undefined : <ThumbUpIcon />}
                 onClick={handleSubmit}
-                disabled={isExpired || submitting}
+                disabled={isExpired || isAlreadySubmitted || submitting}
                 sx={{
-                  background: isExpired
+                  background: isExpired || isAlreadySubmitted
                     ? 'grey.400'
                     : 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
                 }}

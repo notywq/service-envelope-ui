@@ -288,16 +288,58 @@ export const EnhancedServiceRequestPage: React.FC = () => {
       // Step 2: Submit delivery details (if available)
       if (requestId && selectedDeliveryMethod && (Object.keys(deliveryInfo.deliveryMethods || {}).length || 0) > 0) {
         try {
+          const methodConfig: any = (deliveryInfo.deliveryMethods as any)?.[selectedDeliveryMethod] || {};
+
+          let methodSpecificDetails: Record<string, any> = {};
+          if (selectedDeliveryMethod === 'email') {
+            methodSpecificDetails = {
+              recipient: deliveryDetails.recipient || formData.email || methodConfig.recipient,
+              subject: deliveryDetails.subject || methodConfig.subject,
+              templateId: methodConfig.emailTemplateId,
+            };
+          } else if (selectedDeliveryMethod === 'physical_mail') {
+            methodSpecificDetails = {
+              address: deliveryDetails.address || deliveryDetails.mailingAddress,
+              carrier: deliveryDetails.carrier || methodConfig.carrier,
+              requiresSignature: methodConfig.requiresSignature,
+              estimatedDays: methodConfig.estimatedDays,
+            };
+          } else if (selectedDeliveryMethod === 'pickup') {
+            methodSpecificDetails = {
+              location: deliveryDetails.location || methodConfig.location,
+              hoursOfOperation: deliveryDetails.hoursOfOperation || methodConfig.hoursOfOperation,
+              pickupDeadlineAt: deliveryDetails.pickupDeadlineAt,
+            };
+          }
+
+          // Include any additional dynamic fields captured from UI.
+          methodSpecificDetails = {
+            ...methodSpecificDetails,
+            ...deliveryDetails,
+          };
+
+          // Remove undefined/empty values before sending.
+          Object.keys(methodSpecificDetails).forEach((key) => {
+            const value = methodSpecificDetails[key];
+            if (value === undefined || value === null || value === '') {
+              delete methodSpecificDetails[key];
+            }
+          });
+
+          const deliveryPayload = {
+            [selectedDeliveryMethod]: methodSpecificDetails,
+          };
+
           console.log('📦 Step 2: Submitting delivery details...');
           console.log('Delivery payload:', {
             requestId,
             deliveryMethod: selectedDeliveryMethod,
-            deliveryDetails,
+            deliveryDetails: deliveryPayload,
           });
           await api.submitDeliveryDetails(
             requestId,
             selectedDeliveryMethod as 'email' | 'physical_mail' | 'pickup',
-            deliveryDetails
+            deliveryPayload
           );
           
           console.log('✅ Delivery details submitted successfully');

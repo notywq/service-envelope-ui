@@ -1,0 +1,558 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Service Definition Schema v1.0.3 - June 6, 2026",
+  "description": "Complete canonical schema for Service Envelope YAML definitions. Aligns with SERVICE_DEFINITION_RULES.yaml (the bible). v1.0.3: Current MongoDB-backed schema used by the UI and admin builder.",
+  "type": "object",
+  "required": ["name", "type", "description", "envelopes"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Service identifier (free-form; UI may provide custom format)"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable service name"
+    },
+    "type": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Service type identifier (e.g., courseEnrollment, roomRental, requestTOR)"
+    },
+    "description": {
+      "type": "string",
+      "description": "Detailed description of what the service does"
+    },
+    "initiator": {
+      "type": "string",
+      "description": "OPTIONAL: Role/type of user who can initiate (e.g., Student, Faculty, Administrator) - admin metadata only"
+    },
+    "serviceCode": {
+      "type": "string",
+      "description": "Internal service code for reference"
+    },
+    "envelopes": {
+      "type": "object",
+      "required": ["request"],
+      "description": "6-envelope pipeline configuration. Only REQUEST is mandatory; all others are optional (required: false). Optional envelopes can be empty {}.",
+      "properties": {
+        "request": {
+          "$ref": "#/definitions/requestEnvelope",
+          "description": "REQUEST ENVELOPE (ALWAYS REQUIRED) - Collect user parameters"
+        },
+        "approval": {
+          "$ref": "#/definitions/approvalEnvelope",
+          "description": "APPROVAL ENVELOPE (optional) - Authorization workflow with multiple approvers"
+        },
+        "payment": {
+          "$ref": "#/definitions/paymentEnvelope",
+          "description": "PAYMENT ENVELOPE (optional) - Financial transaction processing"
+        },
+        "processing": {
+          "$ref": "#/definitions/processingEnvelope",
+          "description": "PROCESSING ENVELOPE (optional) - Sequential API task execution"
+        },
+        "delivery": {
+          "$ref": "#/definitions/deliveryEnvelope",
+          "description": "DELIVERY ENVELOPE (optional) - Send documents via email/physical_mail/pickup"
+        },
+        "feedback": {
+          "$ref": "#/definitions/feedbackEnvelope",
+          "description": "FEEDBACK ENVELOPE (optional) - Post-completion feedback collection"
+        }
+      }
+    }
+  },
+  "definitions": {
+    "requestEnvelope": {
+      "type": "object",
+      "description": "REQUEST ENVELOPE - Validates incoming user parameters. ALWAYS REQUIRED. Must have required: true for consistency with other envelopes.",
+      "required": ["required"],
+      "properties": {
+        "required": {
+          "type": "boolean",
+          "const": true,
+          "description": "REQUEST envelope must be true (required for consistency; REQUEST is always required)"
+        },
+        "parameters": {
+          "type": "object",
+          "description": "Parameter schema: keys are parameter names, values define type/constraints",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "enum": ["String", "Number", "Boolean", "Date", "Dropdown", "Radio", "Checkboxes"],
+                "description": "Parameter type (7 supported types)"
+              },
+              "required": {
+                "type": "boolean",
+                "description": "Is this parameter required from user?"
+              },
+              "description": {
+                "type": "string",
+                "description": "UI label and help text"
+              },
+              "minLength": {
+                "type": "number",
+                "description": "String: minimum characters"
+              },
+              "maxLength": {
+                "type": "number",
+                "description": "String: maximum characters"
+              },
+              "pattern": {
+                "type": "string",
+                "description": "String: regex validation pattern"
+              },
+              "min": {
+                "type": "number",
+                "description": "Number/Date: minimum value or earliest date"
+              },
+              "max": {
+                "type": "number",
+                "description": "Number/Date: maximum value or latest date"
+              },
+              "step": {
+                "type": "number",
+                "description": "Number: increment step (1=integers, 0.1=decimals, etc.)"
+              },
+              "format": {
+                "enum": ["YYYY-MM-DD", "DD-MM-YYYY", "MM-DD-YYYY", "ISO8601"],
+                "description": "Date: output format"
+              },
+              "options": {
+                "type": "array",
+                "description": "Dropdown/Radio/Checkboxes: available choices",
+                "items": {
+                  "oneOf": [
+                    {"type": "string"},
+                    {
+                      "type": "object",
+                      "properties": {
+                        "label": {"type": "string", "description": "Display text"},
+                        "value": {"type": "string", "description": "Actual value"},
+                        "disabled": {"type": "boolean", "description": "Cannot be selected"}
+                      }
+                    }
+                  ]
+                }
+              },
+              "minSelected": {
+                "type": "number",
+                "description": "Checkboxes: minimum selections required"
+              },
+              "maxSelected": {
+                "type": "number",
+                "description": "Checkboxes: maximum selections allowed"
+              },
+              "default": {
+                "description": "Default value if user doesn't provide"
+              },
+              "searchable": {
+                "type": "boolean",
+                "default": true,
+                "description": "Dropdown: allow typing to filter"
+              },
+              "clearable": {
+                "type": "boolean",
+                "default": false,
+                "description": "Dropdown: allow clearing selection"
+              }
+            },
+            "required": ["type", "required"]
+          }
+        }
+      }
+    },
+    "approvalEnvelope": {
+      "type": "object",
+      "description": "APPROVAL ENVELOPE (optional) - Multi-person authorization workflow with rule types: all_must_approve, any_one, specific_approver, complex",
+      "required": ["required"],
+      "properties": {
+        "required": {
+          "type": "boolean",
+          "description": "Is approval required? (true=validate, false=skip envelope)"
+        },
+        "approvalRules": {
+          "type": "object",
+          "description": "Approval decision rules (required if required: true)",
+          "required": ["type"],
+          "properties": {
+            "type": {
+              "enum": ["all_must_approve", "any_one", "specific_approver", "complex"],
+              "description": "Rule logic: all_must_approve=AND, any_one=OR, specific_approver=single person, complex=mixed"
+            },
+            "requiredApprovers": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "For all_must_approve/complex: all approvers must approve (email addresses)"
+            },
+            "specificApprover": {
+              "type": "string",
+              "description": "For specific_approver: only this person can approve (email address)"
+            },
+            "atLeastOneOf": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "For complex: at least one approver from this group must approve (email addresses)"
+            },
+            "threshold": {
+              "type": "number",
+              "description": "For any_one: how many approvals needed before continuing"
+            }
+          }
+        },
+        "emailTemplateStartEnvelope": {
+          "type": "string",
+          "description": "Email template ID sent when approval envelope begins (e.g., SERV-999-approval-start)"
+        },
+        "emailTemplateEndEnvelope": {
+          "type": "string",
+          "description": "Email template ID sent when approval envelope completes (e.g., SERV-999-approval-end)"
+        },
+        "emailTemplateCancelEnvelope": {
+          "type": "string",
+          "description": "Email template ID sent when approval is DENIED and request is CANCELLED (e.g., SERV-999-request-cancelled)"
+        },
+        "expiryHours": {
+          "type": "number",
+          "default": 24,
+          "minimum": 1,
+          "description": "Hours before approval token expires"
+        }
+      }
+    },
+    "paymentEnvelope": {
+      "type": "object",
+      "description": "PAYMENT ENVELOPE (optional) - Financial transaction processing via MAYA, Stripe, PayPal, or GCash",
+      "required": ["required"],
+      "properties": {
+        "required": {
+          "type": "boolean",
+          "description": "Is payment required? (true=validate, false=skip envelope)"
+        },
+        "paymentProvider": {
+          "enum": ["maya", "stripe", "paypal", "gcash"],
+          "default": "maya",
+          "description": "Payment gateway provider"
+        },
+        "charges": {
+          "type": "array",
+          "description": "Charges to collect (required if required: true). Each charge: amount × quantity = item total",
+          "items": {
+            "type": "object",
+            "required": ["item", "amount", "currency"],
+            "properties": {
+              "item": {
+                "type": "string",
+                "description": "Charge description (e.g., 'Document Processing Fee')"
+              },
+              "amount": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Cost in smallest unit (PHP 500 = ₱5.00)"
+              },
+              "currency": {
+                "enum": ["PHP", "USD", "EUR", "GBP", "JPY"],
+                "default": "PHP",
+                "description": "ISO 4217 currency code"
+              },
+              "quantity": {
+                "type": "number",
+                "default": 1,
+                "description": "Multiplier: 1=fixed, 0=dynamic (uses {{parameterName}})"
+              }
+            }
+          }
+        },
+        "expiryDays": {
+          "type": "number",
+          "default": 7,
+          "minimum": 1,
+          "maximum": 90,
+          "description": "Days before payment window expires and request is cancelled"
+        },
+        "emailTemplateStartEnvelope": {
+          "type": "string",
+          "description": "Email template ID sent when payment is required (e.g., SERV-999-payment-start, includes {{paymentLink}})"
+        },
+        "emailTemplateEndEnvelope": {
+          "type": "string",
+          "description": "Email template ID sent when payment is received (e.g., SERV-999-payment-end)"
+        },
+        "emailTemplateCancelEnvelope": {
+          "type": "string",
+          "description": "Email template ID sent when payment expires and request is CANCELLED (e.g., SERV-999-request-cancelled)"
+        }
+      }
+    },
+    "processingEnvelope": {
+      "type": "object",
+      "description": "PROCESSING ENVELOPE (optional) - Sequential API task execution with HTTP methods (GET/POST/PUT/DELETE/PATCH)",
+      "required": ["required"],
+      "properties": {
+        "required": {
+          "type": "boolean",
+          "description": "Is processing required? (true=validate, false=skip envelope)"
+        },
+        "tasks": {
+          "type": "array",
+          "description": "API tasks to execute sequentially (required if required: true)",
+          "items": {
+            "type": "object",
+            "required": ["type", "name", "method", "url", "timeout", "retries", "successCodes"],
+            "properties": {
+              "type": {
+                "const": "api_call",
+                "description": "Task execution type (only api_call supported)"
+              },
+              "name": {
+                "type": "string",
+                "description": "Task identifier and display name"
+              },
+              "description": {
+                "type": "string",
+                "description": "Human-readable task description"
+              },
+              "method": {
+                "enum": ["GET", "POST", "PUT", "DELETE", "PATCH"],
+                "description": "HTTP method"
+              },
+              "url": {
+                "type": "string",
+                "pattern": "^https?://",
+                "description": "HTTPS endpoint URL (supports {{parameterName}} substitution)"
+              },
+              "headers": {
+                "type": "object",
+                "description": "HTTP headers (supports {{parameterName}} substitution)",
+                "additionalProperties": {"type": "string"}
+              },
+              "queryParams": {
+                "type": "object",
+                "description": "Query string parameters (for GET requests)",
+                "additionalProperties": {"oneOf": [{"type": "string"}, {"type": "number"}]}
+              },
+              "payload": {
+                "type": "object",
+                "description": "Request body for POST/PUT/PATCH (supports {{parameterName}} substitution)",
+                "additionalProperties": true
+              },
+              "timeout": {
+                "type": "number",
+                "minimum": 10000,
+                "description": "Request timeout in milliseconds (minimum 10 seconds)"
+              },
+              "retries": {
+                "type": "number",
+                "minimum": 0,
+                "default": 0,
+                "description": "Number of retry attempts on failure"
+              },
+              "successCodes": {
+                "type": "array",
+                "items": {"type": "number", "minimum": 100, "maximum": 599},
+                "minItems": 1,
+                "description": "HTTP status codes that indicate success (e.g., [200, 201])"
+              }
+            }
+          }
+        },
+        "stopOnFailure": {
+          "type": "boolean",
+          "default": true,
+          "description": "If true: stop pipeline on first task failure. If false: skip failed tasks, continue"
+        },
+        "emailTemplateStartEnvelope": {
+          "type": "string",
+          "description": "Email template ID sent when processing begins (e.g., SERV-999-processing-start)"
+        },
+        "emailTemplateEndEnvelope": {
+          "type": "string",
+          "description": "Email template ID sent when processing completes (e.g., SERV-999-processing-end)"
+        },
+        "emailTemplateCancelEnvelope": {
+          "type": "string",
+          "description": "Email template ID sent when task fails and request is CANCELLED (e.g., SERV-999-request-cancelled)"
+        }
+      }
+    },
+    "deliveryEnvelope": {
+      "type": "object",
+      "description": "DELIVERY ENVELOPE (optional, NEW) - Send documents via email, physical mail, or in-person pickup. Method and details submitted separately via POST /api/delivery/{requestId}/details",
+      "required": ["required"],
+      "properties": {
+        "required": {
+          "type": "boolean",
+          "description": "Is delivery required? (true=validate, false=skip envelope)"
+        },
+        "deliveryMethods": {
+          "type": "object",
+          "description": "Delivery method configurations (required if required: true)",
+          "properties": {
+            "email": {
+              "type": "object",
+              "description": "EMAIL METHOD - Instant delivery via email with attachments",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Is email delivery available?"
+                },
+                "subject": {
+                  "type": "string",
+                  "description": "Email subject line (supports {{parameterName}} substitution)"
+                },
+                "recipient": {
+                  "type": "string",
+                  "description": "Recipient field name (e.g., {{email}} from request parameters)"
+                },
+                "attachmentUrls": {
+                  "type": "array",
+                  "items": {"type": "string"},
+                  "description": "URLs of documents to attach (supports {{parameterName}} substitution)"
+                }
+              }
+            },
+            "physical_mail": {
+              "type": "object",
+              "description": "PHYSICAL_MAIL METHOD - Courier delivery (LBC, JNT, DHL, etc.)",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Is physical mail delivery available?"
+                },
+                "carrier": {
+                  "enum": ["LBC", "JNT", "DHL", "PHL Post", "NinjaVan"],
+                  "description": "Courier service"
+                },
+                "estimatedDays": {
+                  "type": "number",
+                  "minimum": 1,
+                  "description": "Typical delivery time in days"
+                },
+                "costPercentage": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Percentage to add to total payment if selected"
+                },
+                "requiresApprovalBeforeShip": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "Admin must approve before courier pickup"
+                },
+                "requiresSignature": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "Recipient must sign for delivery"
+                },
+                "trackingEnabled": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "Generate tracking number for customer"
+                },
+                "fields": {
+                  "type": "object",
+                  "description": "Form fields to collect from user (e.g., mailingAddress)"
+                }
+              }
+            },
+            "pickup": {
+              "type": "object",
+              "description": "PICKUP METHOD - In-person pickup at designated location",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Is in-person pickup available?"
+                },
+                "location": {
+                  "type": "string",
+                  "description": "Pickup location address/description"
+                },
+                "hoursOfOperation": {
+                  "type": "string",
+                  "description": "When is pickup available (e.g., 'Monday-Friday, 8AM-5PM')"
+                },
+                "requiresIDVerification": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "Must show ID to pickup"
+                },
+                "pickupDeadlineDays": {
+                  "type": "number",
+                  "default": 30,
+                  "description": "Days to hold document before discarding"
+                },
+                "notificationRequired": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "Send email when ready for pickup"
+                }
+              }
+            }
+          }
+        },
+        "emailTemplateStartEnvelope": {
+          "type": "string",
+          "description": "Email template ID sent when delivery envelope begins (e.g., SERV-999-delivery-start)"
+        },
+        "emailTemplateEndEnvelope": {
+          "type": "string",
+          "description": "Email template ID sent when delivery completes (e.g., SERV-999-delivery-end)"
+        },
+        "statusCodes": {
+          "type": "object",
+          "description": "Delivery status code reference (informational only)",
+          "properties": {
+            "0": {"const": "processing", "description": "Preparing document"},
+            "1": {"const": "ready_to_deliver", "description": "Ready for shipment/email/pickup"},
+            "2": {"const": "out_for_delivery", "description": "In transit"},
+            "3": {"const": "delivered", "description": "Recipient received"}
+          }
+        }
+      }
+    },
+    "feedbackEnvelope": {
+      "type": "object",
+      "description": "FEEDBACK ENVELOPE (optional, NEW) - Post-completion feedback collection with auto-close and expiry",
+      "required": ["required"],
+      "properties": {
+        "required": {
+          "type": "boolean",
+          "description": "Is feedback required? (true=validate, false=skip envelope)"
+        },
+        "autoCloseAfterHours": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Hours before request auto-closes (0 or omit = no auto-close). Typically 24 for quick surveys"
+        },
+        "expiryDays": {
+          "type": "number",
+          "default": 7,
+          "minimum": 1,
+          "maximum": 365,
+          "description": "Days before feedback link expires and cannot be submitted"
+        },
+        "notificationRequired": {
+          "type": "boolean",
+          "default": false,
+          "description": "Send reminder email(s) before deadline"
+        },
+        "reminderDaysBefore": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Days before expiry to send reminder (only if notificationRequired: true)"
+        },
+        "emailTemplateStartEnvelope": {
+          "type": "string",
+          "description": "Email template ID sent when feedback envelope begins (e.g., SERV-999-feedback-start, includes {{feedbackLink}})"
+        },
+        "emailTemplateEndEnvelope": {
+          "type": "string",
+          "description": "Email template ID sent when feedback is submitted (e.g., SERV-999-feedback-end)"
+        }
+      }
+    }
+  }
+}
