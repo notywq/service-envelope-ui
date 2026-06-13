@@ -938,29 +938,6 @@ export const RequestDetailPage: React.FC = () => {
     loadRequest();
   }, [requestId]);
 
-  useEffect(() => {
-    if (!requestId) return;
-
-    const resolvedMethod = normalizeDeliveryMethod(
-      deliveryMethodInfo?.deliveryMethod ||
-        deliveryMethodInfo?.method ||
-        deliveryMethodInfo?.type
-    );
-
-    if (resolvedMethod) return;
-
-    const timer = setTimeout(async () => {
-      try {
-        const freshMethod = await api.getDeliveryMethod(requestId);
-        setDeliveryMethodInfo(freshMethod);
-      } catch {
-        // Keep existing state if delayed refetch fails.
-      }
-    }, 800);
-
-    return () => clearTimeout(timer);
-  }, [requestId, deliveryMethodInfo]);
-
   const handleRefresh = async () => {
     if (!requestId) return;
     try {

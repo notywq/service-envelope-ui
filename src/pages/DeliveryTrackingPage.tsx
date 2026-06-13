@@ -234,37 +234,6 @@ export const DeliveryTrackingPage: React.FC = () => {
     loadDeliveryData();
   }, [requestId]);
 
-  // Poll current status every 10s while not completed
-  useEffect(() => {
-    if (!requestId) return;
-    let timer: any = null;
-    const deliveryCodeNumber = deliveryStatus?.code_number;
-    const deliveryCodeName = (deliveryStatus?.code_name || '').toString().toLowerCase();
-    const isTerminalEmail = deliveryStatus?.deliveryType === 'EMAIL' && (deliveryCodeNumber === 1 || deliveryCodeName === 'email_sent');
-    const isTerminalPickup = deliveryStatus?.deliveryType === 'PICKUP' && (deliveryCodeNumber === 2 || deliveryCodeName === 'picked_up');
-    const isTerminalPhysical = deliveryStatus?.deliveryType === 'PHYSICAL' && (deliveryCodeNumber === 3 || deliveryCodeName === 'delivered');
-    const shouldPoll = deliveryStatus && !isTerminalEmail && !isTerminalPickup && !isTerminalPhysical && deliveryStatus.status !== 'completed' && deliveryStatus.status !== 'Delivered';
-    if (shouldPoll) {
-      timer = setInterval(async () => {
-        try {
-          const [freshMethod, fresh] = await Promise.all([
-            api.getDeliveryMethod(requestId).catch(() => null),
-            api.getDeliveryStatus(requestId).catch(() => null),
-          ]);
-          if (freshMethod) {
-            setMethodInfo(freshMethod);
-          }
-          if (fresh) {
-            setDeliveryStatus((prev) => mergeDeliveryStatus(prev, fresh as DeliveryStatus));
-          }
-        } catch (e) {
-          // ignore
-        }
-      }, 10000);
-    }
-    return () => { if (timer) clearInterval(timer); };
-  }, [requestId, deliveryStatus]);
-
   const handleRefresh = async () => {
     setRefreshing(true);
     await loadDeliveryData();
