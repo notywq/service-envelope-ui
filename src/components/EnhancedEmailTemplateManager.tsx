@@ -4,7 +4,7 @@
  * Supports dynamic template variable substitution
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Button,
@@ -40,6 +40,7 @@ import {
   Delete as DeleteIcon,
   Add as AddIcon,
   ContentCopy as CopyIcon,
+  FilterList as FilterListIcon,
 } from '@mui/icons-material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 // Using plain text '?' for help icons to avoid extra icon dependency
@@ -53,6 +54,23 @@ interface EditingTemplate extends EmailTemplate {
   eventKey?: string;
   serviceType?: string | null;
   isActive?: boolean;
+}
+
+interface TemplateListMeta extends EmailTemplate {
+  templateScope?: string;
+  eventKey?: string;
+  serviceType?: string | null;
+  isActive?: boolean;
+}
+
+interface TemplateFilters {
+  search: string;
+  templateScope: string;
+  eventKey: string;
+  envelopeType: string;
+  phase: string;
+  serviceType: string;
+  status: 'all' | 'active' | 'inactive';
 }
 
 interface TabPanelProps {
@@ -86,6 +104,30 @@ const AVAILABLE_VARIABLES = [
   { category: 'Feedback', variables: ['{{feedbackLink}}', '{{surveyExpiryDate}}', '{{npsQuestion}}'] },
 ];
 
+const EMPTY_TEMPLATE_FILTERS: TemplateFilters = {
+  search: '',
+  templateScope: 'all',
+  eventKey: 'all',
+  envelopeType: 'all',
+  phase: 'all',
+  serviceType: 'all',
+  status: 'all',
+};
+
+const getTemplateMeta = (template: EmailTemplate): TemplateListMeta => template as TemplateListMeta;
+
+const normalizeFilterValue = (value: unknown, fallback = '') => String(value || fallback).toLowerCase();
+
+const getUniqueTemplateValues = (templates: EmailTemplate[], getValue: (template: TemplateListMeta) => string | null | undefined) => (
+  Array.from(
+    new Set(
+      templates
+        .map((template) => getValue(getTemplateMeta(template))?.trim())
+        .filter((value): value is string => Boolean(value))
+    )
+  ).sort((a, b) => a.localeCompare(b))
+);
+
 export const EnhancedEmailTemplateManager: React.FC = () => {
   const { addNotification } = useNotification();
 
@@ -97,6 +139,7 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
   const [showDialog, setShowDialog] = useState(false);
   const [tabValue, setTabValue] = useState(0);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [filters, setFilters] = useState<TemplateFilters>(EMPTY_TEMPLATE_FILTERS);
 
   useEffect(() => {
     loadTemplates();
@@ -245,6 +288,76 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
     addNotification('Variable copied to clipboard', 'info');
   };
 
+  const filterOptions = useMemo(() => ({
+    templateScopes: getUniqueTemplateValues(templates, (template) => template.templateScope || 'envelope'),
+    eventKeys: getUniqueTemplateValues(templates, (template) => template.eventKey || ''),
+    envelopeTypes: getUniqueTemplateValues(templates, (template) => template.envelopeType || 'custom'),
+    phases: getUniqueTemplateValues(templates, (template) => template.phase || 'N/A'),
+    serviceTypes: getUniqueTemplateValues(templates, (template) => template.serviceType || ''),
+  }), [templates]);
+
+  const filteredTemplates = useMemo(() => {
+    const search = filters.search.trim().toLowerCase();
+
+    return templates.filter((template) => {
+      const templateMeta = getTemplateMeta(template);
+      const isActive = templateMeta.isActive !== false;
+      const searchableValues = [
+        template.id,
+        template.name,
+        template.subject,
+        template.description,
+        template.htmlBody,
+        templateMeta.templateScope || 'envelope',
+        templateMeta.eventKey,
+        template.envelopeType || 'custom',
+        template.phase || 'N/A',
+        templateMeta.serviceType,
+        isActive ? 'active' : 'inactive',
+      ];
+
+      if (search && !searchableValues.some((value) => normalizeFilterValue(value).includes(search))) {
+        return false;
+      }
+
+      if (filters.templateScope !== 'all' && normalizeFilterValue(templateMeta.templateScope, 'envelope') !== normalizeFilterValue(filters.templateScope)) {
+        return false;
+      }
+
+      if (filters.eventKey !== 'all' && normalizeFilterValue(templateMeta.eventKey) !== normalizeFilterValue(filters.eventKey)) {
+        return false;
+      }
+
+      if (filters.envelopeType !== 'all' && normalizeFilterValue(template.envelopeType, 'custom') !== normalizeFilterValue(filters.envelopeType)) {
+        return false;
+      }
+
+      if (filters.phase !== 'all' && normalizeFilterValue(template.phase, 'N/A') !== normalizeFilterValue(filters.phase)) {
+        return false;
+      }
+
+      if (filters.serviceType !== 'all' && normalizeFilterValue(templateMeta.serviceType) !== normalizeFilterValue(filters.serviceType)) {
+        return false;
+      }
+
+      if (filters.status === 'active' && !isActive) {
+        return false;
+      }
+
+      if (filters.status === 'inactive' && isActive) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [filters, templates]);
+
+  const hasActiveFilters = JSON.stringify(filters) !== JSON.stringify(EMPTY_TEMPLATE_FILTERS);
+
+  const updateFilter = <K extends keyof TemplateFilters>(key: K, value: TemplateFilters[K]) => {
+    setFilters((current) => ({ ...current, [key]: value }));
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
@@ -266,23 +379,208 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
           New Template
         </Button>
       </Box>
-      {/* How-to Guide Accordion (compact) - left aligned */}
+      {/* How-to Guide Accordion */}
       <Accordion sx={{ bgcolor: '#fbfdff', border: '1px solid #e6eefc' }}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ alignItems: 'flex-start' }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 700, textAlign: 'left' }}>How to: Build Email Templates UI</Typography>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, textAlign: 'left' }}>How to: Build Email Templates</Typography>
         </AccordionSummary>
         <AccordionDetails>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, textAlign: 'left' }}>
-            <Typography variant="body2">Quick checklist and guidance for editors and developers implementing this area of the app.</Typography>
-            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Components</Typography>
-            <Typography variant="body2">Templates List, Editor modal with metadata, Variable helper panel, and fallback metadata.</Typography>
-            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Editor rules</Typography>
-            <Typography variant="body2">Require id, name, subject, htmlBody. Use eventKey values like otp-login, payment-end, approval-start, request-denied, or delivery-pickup-ready for generic fallback.</Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, textAlign: 'left' }}>
+            <Typography variant="body2">
+              Email templates live in MongoDB and service YAML points to them by ID. Build the reusable defaults first, then add service-specific overrides only when one service needs different copy.
+            </Typography>
+
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.75 }}>1. Pick the right scope</Typography>
+              <Box component="ul" sx={{ pl: 2.5, m: 0, display: 'grid', gap: 0.5 }}>
+                <Typography component="li" variant="body2"><strong>Generic</strong>: shared fallback for a lifecycle event, such as <code>payment-end</code>, <code>approval-start</code>, <code>request-denied</code>, <code>delivery-email-document</code>, <code>delivery-pickup-ready</code>, or <code>otp-login</code>.</Typography>
+                <Typography component="li" variant="body2"><strong>Envelope</strong>: tied to an envelope and phase, usually <code>request</code>, <code>approval</code>, <code>payment</code>, <code>processing</code>, <code>delivery</code>, or <code>feedback</code> with <code>start</code> or <code>end</code>.</Typography>
+                <Typography component="li" variant="body2"><strong>Service-specific</strong>: a targeted override for one service type. Use this when the generic copy is correct structurally but the service needs its own wording.</Typography>
+              </Box>
+            </Box>
+
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.75 }}>2. Connect it to service YAML</Typography>
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                In a service definition, each envelope can name exact template IDs. These fields override the fallback templates:
+              </Typography>
+              <Box
+                component="pre"
+                sx={{
+                  m: 0,
+                  p: 1.5,
+                  bgcolor: '#f6f8fa',
+                  border: '1px solid #e6eefc',
+                  borderRadius: 1,
+                  fontSize: '0.78rem',
+                  overflow: 'auto',
+                }}
+              >{`approval:
+  emailTemplateStartEnvelope: SERV-999-approval-start
+  emailTemplateEndEnvelope: SERV-999-approval-end
+  emailTemplateCancelEnvelope: SERV-999-request-denied
+  defaultEmailTemplateStartEnvelope: approval-start
+  defaultEmailTemplateEndEnvelope: approval-end`}</Box>
+              <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+                Resolution order is YAML override, YAML default, service-scoped generic like <code>{'{serviceType}-{envelopeType}-{phase}'}</code>, then global generic like <code>{'{envelopeType}-{phase}'}</code>.
+              </Typography>
+            </Box>
+
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.75 }}>3. Name templates predictably</Typography>
+              <Box component="ul" sx={{ pl: 2.5, m: 0, display: 'grid', gap: 0.5 }}>
+                <Typography component="li" variant="body2">Global lifecycle templates should be plain event IDs: <code>approval-start</code>, <code>payment-end</code>, <code>feedback-start</code>.</Typography>
+                <Typography component="li" variant="body2">Service overrides should follow <code>SERV-{'{serviceId}'}-{'{envelopeType}'}-{'{phase}'}</code>, such as <code>SERV-999-payment-end</code>.</Typography>
+                <Typography component="li" variant="body2">Delivery method events can use <code>delivery-email-document</code> and <code>delivery-pickup-ready</code>. OTP login uses <code>otp-login</code> and is not configured from service YAML.</Typography>
+              </Box>
+            </Box>
+
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.75 }}>4. Write useful template content</Typography>
+              <Box component="ul" sx={{ pl: 2.5, m: 0, display: 'grid', gap: 0.5 }}>
+                <Typography component="li" variant="body2">Use a clear subject that includes the action or status, for example <code>Payment received for {'{{requestId}}'}</code>.</Typography>
+                <Typography component="li" variant="body2">Include the next step link when relevant: <code>{'{{approvalLink}}'}</code>, <code>{'{{paymentLink}}'}</code>, or <code>{'{{feedbackLink}}'}</code>.</Typography>
+                <Typography component="li" variant="body2">Use request fields directly, such as <code>{'{{firstName}}'}</code>, <code>{'{{lastName}}'}</code>, <code>{'{{email}}'}</code>, and any service parameter like <code>{'{{studentId}}'}</code>.</Typography>
+                <Typography component="li" variant="body2">Payment receipts can use <code>{'{{paymentAmount}}'}</code>, <code>{'{{paymentCurrency}}'}</code>, <code>{'{{paymentMethod}}'}</code>, <code>{'{{paymentReference}}'}</code>, and <code>{'{{paymentTimestamp}}'}</code>.</Typography>
+              </Box>
+            </Box>
           </Box>
         </AccordionDetails>
       </Accordion>
 
       {error && <Alert severity="error">{error}</Alert>}
+
+      {templates.length > 0 && (
+        <Box
+          sx={{
+            border: '1px solid',
+            borderColor: 'divider',
+            borderRadius: 1,
+            bgcolor: '#fff',
+            p: 2,
+          }}
+        >
+          <Stack spacing={2}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                <FilterListIcon fontSize="small" color="action" />
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                  Filters
+                </Typography>
+                <Typography variant="body2" color="textSecondary">
+                  {filteredTemplates.length} of {templates.length}
+                </Typography>
+              </Stack>
+              <Button
+                size="small"
+                variant="text"
+                onClick={() => setFilters(EMPTY_TEMPLATE_FILTERS)}
+                disabled={!hasActiveFilters}
+              >
+                Clear
+              </Button>
+            </Box>
+
+            <TextField
+              fullWidth
+              size="small"
+              label="Search all template data"
+              value={filters.search}
+              onChange={(event) => updateFilter('search', event.target.value)}
+              placeholder="Name, ID, subject, description, body, event key..."
+            />
+
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: {
+                  xs: '1fr',
+                  sm: 'repeat(2, minmax(0, 1fr))',
+                  lg: 'repeat(3, minmax(0, 1fr))',
+                },
+                gap: 1.5,
+              }}
+            >
+              <FormControl size="small" fullWidth>
+                <Typography variant="caption" color="textSecondary" sx={{ mb: 0.5 }}>Scope</Typography>
+                <Select
+                  value={filters.templateScope}
+                  onChange={(event) => updateFilter('templateScope', event.target.value)}
+                >
+                  <MenuItem value="all">All scopes</MenuItem>
+                  {filterOptions.templateScopes.map((scope) => (
+                    <MenuItem key={scope} value={scope}>{scope}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <FormControl size="small" fullWidth>
+                <Typography variant="caption" color="textSecondary" sx={{ mb: 0.5 }}>Event Key</Typography>
+                <Select
+                  value={filters.eventKey}
+                  onChange={(event) => updateFilter('eventKey', event.target.value)}
+                >
+                  <MenuItem value="all">All event keys</MenuItem>
+                  {filterOptions.eventKeys.map((eventKey) => (
+                    <MenuItem key={eventKey} value={eventKey}>{eventKey}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <FormControl size="small" fullWidth>
+                <Typography variant="caption" color="textSecondary" sx={{ mb: 0.5 }}>Envelope Type</Typography>
+                <Select
+                  value={filters.envelopeType}
+                  onChange={(event) => updateFilter('envelopeType', event.target.value)}
+                >
+                  <MenuItem value="all">All envelope types</MenuItem>
+                  {filterOptions.envelopeTypes.map((envelopeType) => (
+                    <MenuItem key={envelopeType} value={envelopeType}>{envelopeType}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <FormControl size="small" fullWidth>
+                <Typography variant="caption" color="textSecondary" sx={{ mb: 0.5 }}>Phase</Typography>
+                <Select
+                  value={filters.phase}
+                  onChange={(event) => updateFilter('phase', event.target.value)}
+                >
+                  <MenuItem value="all">All phases</MenuItem>
+                  {filterOptions.phases.map((phase) => (
+                    <MenuItem key={phase} value={phase}>{phase}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <FormControl size="small" fullWidth>
+                <Typography variant="caption" color="textSecondary" sx={{ mb: 0.5 }}>Service Type</Typography>
+                <Select
+                  value={filters.serviceType}
+                  onChange={(event) => updateFilter('serviceType', event.target.value)}
+                >
+                  <MenuItem value="all">All service types</MenuItem>
+                  {filterOptions.serviceTypes.map((serviceType) => (
+                    <MenuItem key={serviceType} value={serviceType}>{serviceType}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <FormControl size="small" fullWidth>
+                <Typography variant="caption" color="textSecondary" sx={{ mb: 0.5 }}>Status</Typography>
+                <Select
+                  value={filters.status}
+                  onChange={(event) => updateFilter('status', event.target.value as TemplateFilters['status'])}
+                >
+                  <MenuItem value="all">All statuses</MenuItem>
+                  <MenuItem value="active">Active</MenuItem>
+                  <MenuItem value="inactive">Inactive</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
+          </Stack>
+        </Box>
+      )}
 
       {/* Templates List */}
       {templates.length === 0 ? (
@@ -298,15 +596,23 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
         >
           <Typography color="textSecondary">No templates yet. Create one to get started.</Typography>
         </Box>
+      ) : filteredTemplates.length === 0 ? (
+        <Box
+          sx={{
+            border: '1px dashed',
+            borderColor: 'divider',
+            borderRadius: 2,
+            bgcolor: '#fbfbfb',
+            p: 3,
+            textAlign: 'center',
+          }}
+        >
+          <Typography color="textSecondary">No templates match the current filters.</Typography>
+        </Box>
       ) : (
         <Stack spacing={1.5}>
-          {templates.map((template) => {
-            const templateMeta = template as EmailTemplate & {
-              templateScope?: string;
-              eventKey?: string;
-              serviceType?: string | null;
-              isActive?: boolean;
-            };
+          {filteredTemplates.map((template) => {
+            const templateMeta = getTemplateMeta(template);
             const isActive = templateMeta.isActive !== false;
 
             return (
