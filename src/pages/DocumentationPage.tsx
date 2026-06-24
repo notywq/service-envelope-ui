@@ -152,7 +152,7 @@ export const DocumentationPage: React.FC = () => {
   };
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <Container maxWidth={false} sx={{ py: 4, px: { xs: 0, md: 0 } }}>
       {/* Header */}
       <Box sx={{ mb: 4 }}>
         <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 2 }}>

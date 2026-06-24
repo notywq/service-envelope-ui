@@ -133,7 +133,7 @@ export const DashboardPage: React.FC = () => {
         <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
           Filters
         </Typography>
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr' }, gap: 2, maxWidth: '800px' }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr' }, gap: 2, width: '100%' }}>
           <Box>
             <Select
               fullWidth

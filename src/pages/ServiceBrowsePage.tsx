@@ -107,7 +107,7 @@ export const ServiceBrowsePage: React.FC = () => {
   });
 
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
+    <Container maxWidth={false} sx={{ py: 4, px: { xs: 0, md: 0 } }}>
       {/* Header */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>

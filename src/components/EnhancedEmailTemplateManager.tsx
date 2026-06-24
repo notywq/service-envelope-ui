@@ -13,12 +13,6 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   Paper,
   Alert,
   CircularProgress,
@@ -290,110 +284,187 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
 
       {error && <Alert severity="error">{error}</Alert>}
 
-      {/* Templates Table */}
-      <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
-        <Table size="small">
-          <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
-            <TableRow>
-              <TableCell sx={{ py: 1, px: 1.5, fontSize: '0.8rem', fontWeight: 600 }}>ID</TableCell>
-              <TableCell sx={{ py: 1, px: 1.5, fontSize: '0.8rem', fontWeight: 600 }}>Name</TableCell>
-              <TableCell sx={{ py: 1, px: 1.5, fontSize: '0.8rem', fontWeight: 600 }}>Subject</TableCell>
-              <TableCell sx={{ py: 1, px: 1.5, fontSize: '0.8rem', fontWeight: 600 }}>Scope</TableCell>
-              <TableCell sx={{ py: 1, px: 1.5, fontSize: '0.8rem', fontWeight: 600 }}>Event Key</TableCell>
-              <TableCell sx={{ py: 1, px: 1.5, fontSize: '0.8rem', fontWeight: 600 }}>Envelope Type</TableCell>
-              <TableCell sx={{ py: 1, px: 1.5, fontSize: '0.8rem', fontWeight: 600 }}>Phase</TableCell>
-              <TableCell sx={{ py: 1, px: 1.5, fontSize: '0.8rem', fontWeight: 600 }}>Active</TableCell>
-              <TableCell align="right" sx={{ py: 1, px: 1.5, fontSize: '0.8rem', fontWeight: 600 }}>Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {templates.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={9} align="center" sx={{ py: 2 }}>
-                  <Typography color="textSecondary">No templates yet. Create one to get started.</Typography>
-                </TableCell>
-              </TableRow>
-            ) : (
-              templates.map((template) => (
-                <TableRow key={template.id} hover sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
-                  <TableCell sx={{ py: 0.8, px: 1.5 }}>
-                    <Typography variant="body2" sx={{ fontFamily: 'Courier New, monospace', fontSize: '0.75rem' }}>
-                      {template.id}
-                    </Typography>
-                  </TableCell>
-                  <TableCell sx={{ py: 0.8, px: 1.5 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.8rem' }}>
-                      {template.name}
-                    </Typography>
-                  </TableCell>
-                  <TableCell sx={{ py: 0.8, px: 1.5 }}>
-                    <Typography variant="body2" color="textSecondary" noWrap sx={{ fontSize: '0.8rem' }}>
+      {/* Templates List */}
+      {templates.length === 0 ? (
+        <Box
+          sx={{
+            border: '1px dashed',
+            borderColor: 'divider',
+            borderRadius: 2,
+            bgcolor: '#fbfbfb',
+            p: 3,
+            textAlign: 'center',
+          }}
+        >
+          <Typography color="textSecondary">No templates yet. Create one to get started.</Typography>
+        </Box>
+      ) : (
+        <Stack spacing={1.5}>
+          {templates.map((template) => {
+            const templateMeta = template as EmailTemplate & {
+              templateScope?: string;
+              eventKey?: string;
+              serviceType?: string | null;
+              isActive?: boolean;
+            };
+            const isActive = templateMeta.isActive !== false;
+
+            return (
+              <Accordion
+                key={template.id}
+                disableGutters
+                sx={{
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 1,
+                  boxShadow: 'none',
+                  overflow: 'hidden',
+                  '&:before': { display: 'none' },
+                  '&.Mui-expanded': {
+                    borderColor: 'primary.light',
+                  },
+                }}
+              >
+                <AccordionSummary
+                  expandIcon={<ExpandMoreIcon />}
+                  sx={{
+                    px: 2,
+                    py: 1,
+                    bgcolor: '#fff',
+                    '& .MuiAccordionSummary-content': {
+                      my: 0.5,
+                      minWidth: 0,
+                    },
+                  }}
+                >
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: {
+                        xs: '1fr',
+                        md: 'minmax(180px, 1fr) minmax(260px, 1.6fr) minmax(210px, auto) auto',
+                      },
+                      gap: 1.5,
+                      alignItems: 'center',
+                      width: '100%',
+                      minWidth: 0,
+                      pr: 1.5,
+                    }}
+                  >
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography sx={{ fontWeight: 700, overflowWrap: 'anywhere' }}>
+                        {template.name}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        color="textSecondary"
+                        sx={{ display: 'block', fontFamily: 'Courier New, monospace', overflowWrap: 'anywhere' }}
+                      >
+                        {template.id}
+                      </Typography>
+                    </Box>
+
+                    <Typography
+                      variant="body2"
+                      color="textSecondary"
+                      sx={{ minWidth: 0, overflowWrap: 'anywhere' }}
+                    >
                       {template.subject}
                     </Typography>
-                  </TableCell>
-                  <TableCell sx={{ py: 0.8, px: 1.5 }}>
-                    <Chip
-                      label={(template as any).templateScope || 'envelope'}
-                      size="small"
-                      variant="outlined"
-                      sx={{ height: 22, fontSize: '0.7rem' }}
-                    />
-                  </TableCell>
-                  <TableCell sx={{ py: 0.8, px: 1.5 }}>
-                    <Typography variant="body2" sx={{ fontFamily: 'Courier New, monospace', fontSize: '0.75rem' }}>
-                      {(template as any).eventKey || '-'}
-                    </Typography>
-                  </TableCell>
-                  <TableCell sx={{ py: 0.8, px: 1.5 }}>
-                    <Chip
-                      label={template.envelopeType || 'custom'}
-                      size="small"
-                      variant="outlined"
-                      sx={{ height: 22, fontSize: '0.7rem' }}
-                    />
-                  </TableCell>
-                  <TableCell sx={{ py: 0.8, px: 1.5 }}>
-                    <Chip
-                      label={template.phase || 'N/A'}
-                      size="small"
-                      color={template.phase === 'start' ? 'primary' : 'secondary'}
-                      variant="outlined"
-                      sx={{ height: 22, fontSize: '0.7rem' }}
-                    />
-                  </TableCell>
-                  <TableCell sx={{ py: 0.8, px: 1.5 }}>
-                    <Chip
-                      label={(template as any).isActive === false ? 'Inactive' : 'Active'}
-                      color={(template as any).isActive === false ? 'default' : 'success'}
-                      size="small"
-                      variant="outlined"
-                      sx={{ height: 22, fontSize: '0.7rem' }}
-                    />
-                  </TableCell>
-                  <TableCell align="right" sx={{ py: 0.8, px: 1.5 }}>
-                    <IconButton
-                      size="small"
-                      onClick={() => handleEditTemplate(template)}
-                      title="Edit"
-                      sx={{ p: 0.5 }}
+
+                    <Stack direction="row" spacing={0.75} useFlexGap sx={{ minWidth: 0, flexWrap: 'wrap' }}>
+                      <Chip
+                        label={templateMeta.templateScope || 'envelope'}
+                        size="small"
+                        variant="outlined"
+                        sx={{ height: 24, fontSize: '0.72rem' }}
+                      />
+                      <Chip
+                        label={template.envelopeType || 'custom'}
+                        size="small"
+                        variant="outlined"
+                        sx={{ height: 24, fontSize: '0.72rem' }}
+                      />
+                      <Chip
+                        label={isActive ? 'Active' : 'Inactive'}
+                        color={isActive ? 'success' : 'default'}
+                        size="small"
+                        variant="outlined"
+                        sx={{ height: 24, fontSize: '0.72rem' }}
+                      />
+                    </Stack>
+
+                    <Stack
+                      direction="row"
+                      spacing={0.5}
+                      sx={{ justifyContent: { xs: 'flex-start', md: 'flex-end' } }}
+                      onClick={(event) => event.stopPropagation()}
+                      onFocus={(event) => event.stopPropagation()}
                     >
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      onClick={() => setDeleteConfirmId(template.id)}
-                      title="Delete"
-                      sx={{ color: 'error.main', p: 0.5 }}
-                    >
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+                      <Tooltip title="Edit template">
+                        <IconButton size="small" onClick={() => handleEditTemplate(template)}>
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Delete template">
+                        <IconButton
+                          size="small"
+                          onClick={() => setDeleteConfirmId(template.id)}
+                          sx={{ color: 'error.main' }}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </Stack>
+                  </Box>
+                </AccordionSummary>
+                <AccordionDetails sx={{ px: 2, pt: 0, pb: 2 }}>
+                  <Box
+                    sx={{
+                      borderTop: '1px solid',
+                      borderColor: 'divider',
+                      pt: 2,
+                      display: 'grid',
+                      gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' },
+                      gap: 2,
+                    }}
+                  >
+                    {[
+                      ['Event Key', templateMeta.eventKey || '-'],
+                      ['Envelope Type', template.envelopeType || 'custom'],
+                      ['Phase', template.phase || 'N/A'],
+                      ['Service Type', templateMeta.serviceType || '-'],
+                    ].map(([label, value]) => (
+                      <Box key={label} sx={{ minWidth: 0 }}>
+                        <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 700, textTransform: 'uppercase' }}>
+                          {label}
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          sx={{ fontFamily: 'Courier New, monospace', overflowWrap: 'anywhere' }}
+                        >
+                          {value}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Box>
+
+                  {template.description && (
+                    <Box sx={{ mt: 2 }}>
+                      <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 700, textTransform: 'uppercase' }}>
+                        Description
+                      </Typography>
+                      <Typography variant="body2" sx={{ overflowWrap: 'anywhere' }}>
+                        {template.description}
+                      </Typography>
+                    </Box>
+                  )}
+                </AccordionDetails>
+              </Accordion>
+            );
+          })}
+        </Stack>
+      )}
 
       {/* Edit/Create Template Dialog */}
       <Dialog open={showDialog} onClose={() => setShowDialog(false)} maxWidth="lg" fullWidth>

@@ -273,7 +273,7 @@ export const DeliveryTrackingPage: React.FC = () => {
 
   if (error && !deliveryStatus) {
     return (
-      <Box sx={{ maxWidth: 600, mx: 'auto', py: 4, px: 2 }}>
+      <Box sx={{ width: '100%', py: 4, px: 2 }}>
         <Alert severity="error" icon={<ErrorIcon />}>
           {error}
         </Alert>
@@ -283,7 +283,7 @@ export const DeliveryTrackingPage: React.FC = () => {
 
   if (!deliveryStatus) {
     return (
-      <Box sx={{ maxWidth: 600, mx: 'auto', py: 4, px: 2 }}>
+      <Box sx={{ width: '100%', py: 4, px: 2 }}>
         <Alert severity="info">No delivery information available</Alert>
       </Box>
     );
@@ -338,7 +338,7 @@ export const DeliveryTrackingPage: React.FC = () => {
   };
 
   return (
-    <Box sx={{ maxWidth: 1000, mx: 'auto', py: 4, px: 2 }}>
+    <Box sx={{ width: '100%', py: 4, px: 2 }}>
       {/* Header with Refresh */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
         <Box>

@@ -146,7 +146,7 @@ export const ApprovalDecisionPage: React.FC = () => {
 
   if (decided) {
     return (
-      <Box sx={{ maxWidth: 600, mx: 'auto', py: 4 }}>
+      <Box sx={{ width: '100%', py: 4 }}>
         <Card sx={{ textAlign: 'center', py: 4 }}>
           <CardContent>
             {decision === 'approve' ? (
@@ -181,7 +181,7 @@ export const ApprovalDecisionPage: React.FC = () => {
 
   if (error && !approvalData) {
     return (
-      <Box sx={{ maxWidth: 600, mx: 'auto', py: 4 }}>
+      <Box sx={{ width: '100%', py: 4 }}>
         <Alert severity="error" icon={<ErrorIcon />}>
           {error}
         </Alert>
@@ -204,7 +204,7 @@ export const ApprovalDecisionPage: React.FC = () => {
   const isExpired = daysUntilExpiry < 0;
 
   return (
-    <Box sx={{ maxWidth: 900, mx: 'auto', py: 4 }}>
+    <Box sx={{ width: '100%', py: 4 }}>
       {/* Header */}
       <Box sx={{ mb: 3 }}>
         <Typography variant="h4" gutterBottom>

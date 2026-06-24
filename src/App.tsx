@@ -192,7 +192,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       </AppBar>
 
       <Box component="main" sx={{ flex: 1, py: 3 }}>
-        <Container maxWidth="lg">{children}</Container>
+        <Container maxWidth="xl" sx={{ px: { xs: 2, md: 3 } }}>
+          {children}
+        </Container>
       </Box>
     </Box>
   );
@@ -293,7 +295,7 @@ function AppInner() {
         </Layout>
       ) : (
         <Box sx={{ minHeight: '100vh', bgcolor: '#f5f5f5', py: 3 }}>
-          <Container maxWidth="lg">
+          <Container maxWidth="xl" sx={{ px: { xs: 2, md: 3 } }}>
             <Routes>
               <Route path="/approvals/:token" element={<ApprovalPage />} />
               <Route path="/feedback/:token" element={<FeedbackPage />} />

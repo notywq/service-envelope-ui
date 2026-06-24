@@ -253,7 +253,7 @@ export const FeedbackPage: React.FC = () => {
 
   if (submitted) {
     return (
-      <Box sx={{ maxWidth: 600, mx: 'auto', py: 4 }}>
+      <Box sx={{ width: '100%', py: 4 }}>
         <Card sx={{ textAlign: 'center', py: 4 }}>
           <CardContent>
             <CheckIcon sx={{ fontSize: 60, color: 'success.main', mb: 2 }} />
@@ -280,7 +280,7 @@ export const FeedbackPage: React.FC = () => {
 
   if (error && !feedbackData) {
     return (
-      <Box sx={{ maxWidth: 600, mx: 'auto', py: 4 }}>
+      <Box sx={{ width: '100%', py: 4 }}>
         <Alert severity="error" icon={<ErrorIcon />}>
           {error}
         </Alert>
@@ -304,7 +304,7 @@ export const FeedbackPage: React.FC = () => {
   const daysUntilExpiry = Math.ceil((expiresDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
   return (
-    <Box sx={{ maxWidth: 800, mx: 'auto', py: 4 }}>
+    <Box sx={{ width: '100%', py: 4 }}>
       {/* Header Card */}
       <Paper
         elevation={1}
