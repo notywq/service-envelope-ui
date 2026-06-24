@@ -93,7 +93,7 @@ type ParameterType =
   | 'String'      // Text input (minLength, maxLength, pattern)
   | 'Number'      // Numeric input (min, max, step)
   | 'Boolean'     // Toggle/checkbox
-  | 'Date'        // Date picker (minDate, maxDate, format)
+  | 'Date'        // Date picker (format, min, max)
   | 'Dropdown'    // Single select (options array)
   | 'Radio'       // Single choice (options array)
   | 'Checkboxes'  // Multiple choice (minSelected, maxSelected)
@@ -170,7 +170,8 @@ GET  /login                  → LoginPage
 
 ### Authentication & Metadata
 ```typescript
-api.login(email, password)
+api.sendOtp(email)
+api.verifyOtp(email, code)
 api.getServices()                        // List all services
 ```
 
@@ -274,7 +275,7 @@ interface DeliveryMethod
 - **String type**: minLength, maxLength, pattern (regex)
 - **Number type**: min, max, step
 - **Boolean type**: required, default
-- **Date type**: format (YYYY-MM-DD, DD-MM-YYYY, MM-DD-YYYY, ISO8601), minDate, maxDate
+- **Date type**: format (YYYY-MM-DD, DD-MM-YYYY, MM-DD-YYYY, ISO8601), min, max
 - **Dropdown/Radio**: options array required, default must be in options
 - **Checkboxes**: minSelected, maxSelected, defaults must be in options
 - **Approval rules**: type validation, approver list verification

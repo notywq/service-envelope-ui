@@ -136,7 +136,7 @@ npm run lint
 - [x] **ApprovalPage** - Approval management interface
 
 ### User Pages
-- [x] **LoginPage** - Email/password authentication
+- [x] **LoginPage** - Email OTP authentication with bearer tokens
 - [x] **DashboardPage** - Request list with filtering and status tracking
 - [x] **EnhancedServiceRequestPage** - 3-step wizard for service requests
 - [x] **RequestDetailPage** - Single request details with timeline
@@ -176,7 +176,8 @@ npm run build  # tsc -b && vite build
 ## 📚 API Endpoints (17 Total Methods)
 
 **Authentication**
-- `POST /auth/login` - User login
+- `POST /api/OTP/send` - Request email OTP
+- `POST /api/OTP/verify` - Verify OTP and receive bearer token
 - `POST /auth/logout` - User logout
 
 **Service Management (7)**

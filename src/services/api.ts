@@ -17,9 +17,28 @@ import type {
   PaymentFailureRequest,
   PaymentFailureResponse,
   RequestFilters,
+  AuthUser,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
+const getStoredToken = (): string | null => {
+  return localStorage.getItem('accessToken') || localStorage.getItem('token');
+};
+
+const clearStoredAuth = (): void => {
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+};
+
+const isPublicAuthFailurePath = (url = ''): boolean => {
+  return (
+    url.includes('/api/OTP/') ||
+    url.includes('/api/approvals/') ||
+    url.includes('/api/feedback/token/')
+  );
+};
 
 class ApiClient {
   private client: AxiosInstance;
@@ -34,7 +53,7 @@ class ApiClient {
 
     // Interceptor: Add token to every request
     this.client.interceptors.request.use((config) => {
-      const token = localStorage.getItem('token');
+      const token = getStoredToken();
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -45,9 +64,10 @@ class ApiClient {
     this.client.interceptors.response.use(
       (response) => response,
       (error) => {
-        if (error.response?.status === 401) {
+        const requestUrl = error.config?.url || '';
+        if (error.response?.status === 401 && !isPublicAuthFailurePath(requestUrl)) {
           // Clear token and redirect to login
-          localStorage.removeItem('token');
+          clearStoredAuth();
           window.location.href = '/login';
         }
         return Promise.reject(error);
@@ -57,17 +77,48 @@ class ApiClient {
 
   // ========== AUTH ENDPOINTS ==========
 
-  async login(email: string, password: string): Promise<LoginResponse> {
-    const response = await this.client.post<LoginResponse>('/api/auth/login', {
+  async sendOtp(email: string, purpose = 'login'): Promise<{ retryAfterSeconds?: number; message?: string }> {
+    const response = await this.client.post('/api/OTP/send', {
       email,
-      password,
+      purpose,
     });
-    localStorage.setItem('token', response.data.token);
+    return response.data;
+  }
+
+  async verifyOtp(email: string, code: string, purpose = 'login'): Promise<LoginResponse> {
+    const response = await this.client.post<LoginResponse>('/api/OTP/verify', {
+      email,
+      code,
+      purpose,
+    });
+    const accessToken = response.data.accessToken || response.data.token;
+    if (accessToken) {
+      localStorage.setItem('accessToken', accessToken);
+      localStorage.removeItem('token');
+    }
+    if (response.data.user) {
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+    }
+    return response.data;
+  }
+
+  async cancelOtp(email: string, purpose = 'login') {
+    const response = await this.client.post('/api/OTP/cancel', { email, purpose });
+    return response.data;
+  }
+
+  async getCurrentUser(): Promise<LoginResponse['user']> {
+    const response = await this.client.get('/api/auth/me');
+    return response.data.user || response.data;
+  }
+
+  async verifyAuth() {
+    const response = await this.client.post('/api/auth/verify');
     return response.data;
   }
 
   logout(): void {
-    localStorage.removeItem('token');
+    clearStoredAuth();
   }
 
   // ========== SERVICE ENDPOINTS ==========
@@ -85,10 +136,12 @@ class ApiClient {
   async submitServiceRequest(
     serviceId: string,
     parameters: Record<string, string | number | boolean | Date | null>,
-    initiator: string = 'Service Envelope Web UI'
+    initiator: string = 'Service Envelope Web UI',
+    serviceType?: string
   ): Promise<{ id: string; status: string }> {
     const response = await this.client.post(`/api/requests`, {
       serviceId,
+      type: serviceType || serviceId,
       parameters,
       initiator,
     });
@@ -205,6 +258,45 @@ class ApiClient {
     const response = await this.client.delete(`/api/services/${serviceId}`);
     return response.data;
   }
+
+  // ========== AUTH USER ADMIN ENDPOINTS ==========
+
+  async getAuthUsers(): Promise<{ users: AuthUser[] }> {
+    const response = await this.client.get('/api/admin/auth-users');
+    return response.data;
+  }
+
+  async createAuthUser(data: {
+    email: string;
+    name?: string;
+    role: string;
+    isActive: boolean;
+    allowedForOtp: boolean;
+  }) {
+    const response = await this.client.post('/api/admin/auth-users', data);
+    return response.data;
+  }
+
+  async updateAuthUser(email: string, data: Partial<{
+    name: string;
+    role: string;
+    isActive: boolean;
+    allowedForOtp: boolean;
+  }>) {
+    const response = await this.client.put(`/api/admin/auth-users/${encodeURIComponent(email)}`, data);
+    return response.data;
+  }
+
+  async deleteAuthUser(email: string) {
+    const response = await this.client.delete(`/api/admin/auth-users/${encodeURIComponent(email)}`);
+    return response.data;
+  }
+
+  async flushOtpChallenges() {
+    const response = await this.client.post('/api/OTP/flush');
+    return response.data;
+  }
+
   // ========== EMAIL TEMPLATE ENDPOINTS ==========
 
   async getEmailTemplates(filters?: Record<string, any>) {

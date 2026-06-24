@@ -3,26 +3,44 @@
  */
 
 // Authentication
+export type AuthRole = 'requester' | 'admin' | 'orchestrator' | 'super_admin';
+
 export interface LoginRequest {
   email: string;
-  password: string;
+  password?: string;
 }
 
 export interface LoginResponse {
-  token: string;
+  accessToken: string;
+  tokenType: 'Bearer' | string;
+  expiresIn?: string;
+  token?: string;
   user: {
     email: string;
-    name: string;
-    role: string;
+    name?: string;
+    role: AuthRole | string;
   };
 }
 
 export interface AuthContextType {
   token: string | null;
   user: LoginResponse['user'] | null;
-  login: (email: string, password: string) => Promise<void>;
+  requestOtp: (email: string) => Promise<{ retryAfterSeconds?: number; message?: string }>;
+  verifyOtp: (email: string, code: string) => Promise<void>;
+  cancelOtp: (email: string) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
+  isAuthLoading: boolean;
+}
+
+export interface AuthUser {
+  email: string;
+  name?: string;
+  role: AuthRole | string;
+  isActive: boolean;
+  allowedForOtp: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // Envelopes
@@ -287,8 +305,9 @@ export interface DateParameter {
   type: 'Date';
   required?: boolean;
   description?: string;
-  minDate?: string;
-  maxDate?: string;
+  format?: 'YYYY-MM-DD' | 'DD-MM-YYYY' | 'MM-DD-YYYY' | 'ISO8601';
+  min?: string;
+  max?: string;
   default?: string;
 }
 
@@ -314,7 +333,8 @@ export interface CheckboxesParameter {
   description?: string;
   options: ParameterOption[];
   default?: (string | number)[];
-  maxSelections?: number;
+  minSelected?: number;
+  maxSelected?: number;
 }
 
 export type ParameterSchema = 

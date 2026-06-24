@@ -178,7 +178,7 @@ export const PaymentPage: React.FC = () => {
       });
 
       addNotification(`Payment failed: ${reason}`, 'error');
-    } catch (err: any) {
+    } catch {
       addNotification('Failed to record payment failure', 'error');
     }
   };
@@ -280,7 +280,7 @@ export const PaymentPage: React.FC = () => {
             }}
           >
             <Typography variant="caption" color="textSecondary">
-              You will receive a confirmation email shortly. Your request is now being processed.
+              If this service has a payment-end template or generic fallback, the orchestrator will send the confirmation email.
             </Typography>
           </Paper>
 

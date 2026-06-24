@@ -85,8 +85,9 @@ function TabPanel(props: TabPanelProps) {
 const AVAILABLE_VARIABLES = [
   { category: 'System', variables: ['{{requestId}}', '{{currentTimestamp}}', '{{frontendBaseUrl}}'] },
   { category: 'Request', variables: ['{{firstName}}', '{{lastName}}', '{{email}}', '{{initiatorName}}'] },
+  { category: 'OTP Login', variables: ['{{otpCode}}', '{{code}}', '{{expiryMinutes}}', '{{expiresInMinutes}}', '{{email}}'] },
   { category: 'Approval', variables: ['{{approvalDeadline}}', '{{requiredApprovers}}', '{{approvalLink}}'] },
-  { category: 'Payment', variables: ['{{totalAmount}}', '{{paymentLink}}', '{{currency}}'] },
+  { category: 'Payment', variables: ['{{totalAmount}}', '{{paymentLink}}', '{{currency}}', '{{transactionId}}', '{{paymentAmount}}', '{{paymentMethod}}', '{{paymentReference}}', '{{paymentTimestamp}}'] },
   { category: 'Delivery', variables: ['{{deliveryMethod}}', '{{trackingNumber}}', '{{estimatedDelivery}}'] },
   { category: 'Feedback', variables: ['{{feedbackLink}}', '{{surveyExpiryDate}}', '{{npsQuestion}}'] },
 ];
@@ -280,9 +281,9 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, textAlign: 'left' }}>
             <Typography variant="body2">Quick checklist and guidance for editors and developers implementing this area of the app.</Typography>
             <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Components</Typography>
-            <Typography variant="body2">Templates List, Editor modal with metadata, Variable helper panel, and a small naming guidance helper.</Typography>
+            <Typography variant="body2">Templates List, Editor modal with metadata, Variable helper panel, and fallback metadata.</Typography>
             <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Editor rules</Typography>
-            <Typography variant="body2">Require id, name, subject, htmlBody. When scope = service, require serviceType. Warn if eventKey is empty for generic/service scopes.</Typography>
+            <Typography variant="body2">Require id, name, subject, htmlBody. Use eventKey values like otp-login, payment-end, approval-start, request-denied, or delivery-pickup-ready for generic fallback.</Typography>
           </Box>
         </AccordionDetails>
       </Accordion>
@@ -297,15 +298,18 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
               <TableCell sx={{ py: 1, px: 1.5, fontSize: '0.8rem', fontWeight: 600 }}>ID</TableCell>
               <TableCell sx={{ py: 1, px: 1.5, fontSize: '0.8rem', fontWeight: 600 }}>Name</TableCell>
               <TableCell sx={{ py: 1, px: 1.5, fontSize: '0.8rem', fontWeight: 600 }}>Subject</TableCell>
+              <TableCell sx={{ py: 1, px: 1.5, fontSize: '0.8rem', fontWeight: 600 }}>Scope</TableCell>
+              <TableCell sx={{ py: 1, px: 1.5, fontSize: '0.8rem', fontWeight: 600 }}>Event Key</TableCell>
               <TableCell sx={{ py: 1, px: 1.5, fontSize: '0.8rem', fontWeight: 600 }}>Envelope Type</TableCell>
               <TableCell sx={{ py: 1, px: 1.5, fontSize: '0.8rem', fontWeight: 600 }}>Phase</TableCell>
+              <TableCell sx={{ py: 1, px: 1.5, fontSize: '0.8rem', fontWeight: 600 }}>Active</TableCell>
               <TableCell align="right" sx={{ py: 1, px: 1.5, fontSize: '0.8rem', fontWeight: 600 }}>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {templates.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} align="center" sx={{ py: 2 }}>
+                <TableCell colSpan={9} align="center" sx={{ py: 2 }}>
                   <Typography color="textSecondary">No templates yet. Create one to get started.</Typography>
                 </TableCell>
               </TableRow>
@@ -329,6 +333,19 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
                   </TableCell>
                   <TableCell sx={{ py: 0.8, px: 1.5 }}>
                     <Chip
+                      label={(template as any).templateScope || 'envelope'}
+                      size="small"
+                      variant="outlined"
+                      sx={{ height: 22, fontSize: '0.7rem' }}
+                    />
+                  </TableCell>
+                  <TableCell sx={{ py: 0.8, px: 1.5 }}>
+                    <Typography variant="body2" sx={{ fontFamily: 'Courier New, monospace', fontSize: '0.75rem' }}>
+                      {(template as any).eventKey || '-'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell sx={{ py: 0.8, px: 1.5 }}>
+                    <Chip
                       label={template.envelopeType || 'custom'}
                       size="small"
                       variant="outlined"
@@ -340,6 +357,15 @@ export const EnhancedEmailTemplateManager: React.FC = () => {
                       label={template.phase || 'N/A'}
                       size="small"
                       color={template.phase === 'start' ? 'primary' : 'secondary'}
+                      variant="outlined"
+                      sx={{ height: 22, fontSize: '0.7rem' }}
+                    />
+                  </TableCell>
+                  <TableCell sx={{ py: 0.8, px: 1.5 }}>
+                    <Chip
+                      label={(template as any).isActive === false ? 'Inactive' : 'Active'}
+                      color={(template as any).isActive === false ? 'default' : 'success'}
+                      size="small"
                       variant="outlined"
                       sx={{ height: 22, fontSize: '0.7rem' }}
                     />

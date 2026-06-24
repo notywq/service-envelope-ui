@@ -46,6 +46,7 @@ import { useNotification } from '../hooks/useNotification';
 import { useAuth } from '../hooks/useAuth';
 import { DynamicFormField } from '../components/DynamicFormField';
 import type { ServiceDefinition, ServiceDefinitionWithSchema, ParameterSchema } from '../types';
+import { canViewRequestList, isRequester } from '../utils/permissions';
 
 interface FormData {
   service: string;
@@ -66,7 +67,7 @@ interface DeliveryInfo {
 
 export const EnhancedServiceRequestPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user: _user } = useAuth();
+  const { user } = useAuth();
   const { addNotification } = useNotification();
 
   const [services, setServices] = useState<ServiceDefinition[]>([]);
@@ -119,7 +120,7 @@ export const EnhancedServiceRequestPage: React.FC = () => {
     }
   }, [location.search, services]);
 
-  const selectedService = services.find((s) => s.serviceId === formData.service);
+  const selectedService = services.find((s) => s.serviceId === formData.service || s.id === formData.service);
   const enabledDeliveryMethods = (['email', 'physical_mail', 'pickup'] as const).filter(
     (method) => (deliveryInfo.deliveryMethods as any)?.[method]?.enabled === true
   );
@@ -153,7 +154,7 @@ export const EnhancedServiceRequestPage: React.FC = () => {
   const handleServiceChange = (service: ServiceDefinition) => {
     // Update formData with the service ID
     setFormData(prev => {
-      const updated = { ...prev, service: service.serviceId };
+      const updated = { ...prev, service: service.serviceId || service.id };
       return updated;
     });
     
@@ -183,12 +184,23 @@ export const EnhancedServiceRequestPage: React.FC = () => {
 
         if (parameters) {
           setServiceParameters(parameters);
+          if (isRequester(user?.role) && user?.email) {
+            setFormData((prev) => {
+              const updated = { ...prev };
+              ['email', 'emailAddress', 'requesterEmail', 'studentEmail', 'contactEmail'].forEach((key) => {
+                if (parameters[key]) {
+                  updated[key] = user.email;
+                }
+              });
+              return updated;
+            });
+          }
         } else {
           setServiceParameters({});
         }
 
         // Extract delivery information from envelopes.delivery
-        let delivery = (serviceSchema as any)?.envelopes?.delivery || {};
+        const delivery = (serviceSchema as any)?.envelopes?.delivery || {};
         setDeliveryInfo(delivery);
       } catch (err) {
         console.error('Error parsing service definition:', err);
@@ -336,9 +348,23 @@ export const EnhancedServiceRequestPage: React.FC = () => {
       const parameters: Record<string, any> = { ...formData };
       delete parameters.service;
 
+      if (isRequester(user?.role) && user?.email) {
+        parameters.email = user.email;
+        ['emailAddress', 'requesterEmail', 'studentEmail', 'contactEmail'].forEach((key) => {
+          if (serviceParameters[key]) {
+            parameters[key] = user.email;
+          }
+        });
+      }
+
       // Step 1: Submit request with parameters (NO delivery method)
       console.log('📋 Step 1: Submitting request with parameters...');
-      const resultAny: any = await api.submitServiceRequest(formData.service, parameters, 'Service Envelope Web UI');
+      const resultAny: any = await api.submitServiceRequest(
+        formData.service,
+        parameters,
+        user?.email || 'Service Envelope Web UI',
+        selectedService?.type
+      );
       console.log('✅ Request submitted:', resultAny);
 
       const requestIdCandidates = [
@@ -369,7 +395,6 @@ export const EnhancedServiceRequestPage: React.FC = () => {
             methodSpecificDetails = {
               recipient: resolvedRecipientEmail,
               subject: deliveryDetails.subject || methodConfig.subject,
-              templateId: methodConfig.emailTemplateId,
             };
           } else if (selectedDeliveryMethod === 'physical_mail') {
             methodSpecificDetails = {
@@ -490,9 +515,9 @@ export const EnhancedServiceRequestPage: React.FC = () => {
             <Stack direction="row" spacing={2} sx={{ mt: 3, justifyContent: 'center' }}>
               <Button
                 variant="outlined"
-                onClick={() => navigate('/dashboard')}
+                onClick={() => navigate(canViewRequestList(user?.role) ? '/dashboard' : '/services')}
               >
-                Go to Dashboard
+                {canViewRequestList(user?.role) ? 'Go to Dashboard' : 'Browse Services'}
               </Button>
               <Button
                 variant="contained"
@@ -514,10 +539,10 @@ export const EnhancedServiceRequestPage: React.FC = () => {
         <Button
           variant="text"
           startIcon={<ArrowBackIcon />}
-          onClick={() => navigate('/dashboard')}
+          onClick={() => navigate(canViewRequestList(user?.role) ? '/dashboard' : '/services')}
           sx={{ textTransform: 'none' }}
         >
-          Back to Dashboard
+          {canViewRequestList(user?.role) ? 'Back to Dashboard' : 'Back to Services'}
         </Button>
       </Box>
 
@@ -562,7 +587,7 @@ export const EnhancedServiceRequestPage: React.FC = () => {
             <Select
               value={formData.service || ''}
               onChange={(e) => {
-                const selected = services.find((s) => s.serviceId === e.target.value);
+                const selected = services.find((s) => s.serviceId === e.target.value || s.id === e.target.value);
                 if (selected) {
                   handleServiceChange(selected);
                 }
@@ -574,7 +599,7 @@ export const EnhancedServiceRequestPage: React.FC = () => {
                 <em>Select a service...</em>
               </MenuItem>
               {services.map((service) => (
-                <MenuItem key={service.serviceId} value={service.serviceId}>
+                <MenuItem key={service.serviceId || service.id} value={service.serviceId || service.id}>
                   <Box>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
                       {service.name}
@@ -626,6 +651,7 @@ export const EnhancedServiceRequestPage: React.FC = () => {
                       value={formData[fieldName]}
                       onChange={(value) => handleParameterChange(fieldName, value)}
                       error={formErrors[fieldName]}
+                      disabled={isRequester(user?.role) && Boolean(user?.email) && ['email', 'emailAddress', 'requesterEmail', 'studentEmail', 'contactEmail'].includes(fieldName)}
                     />
                   </Box>
                 ))}

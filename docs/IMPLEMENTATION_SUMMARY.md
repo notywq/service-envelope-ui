@@ -16,7 +16,7 @@ Added comprehensive type definitions for all parameter types supported by servic
 - **DateParameter** - Date picker with min/max date constraints
 - **DropdownParameter** - Single-select with options
 - **RadioParameter** - Radio button group with options
-- **CheckboxesParameter** - Multi-select with maxSelections limit
+- **CheckboxesParameter** - Multi-select with maxSelected limit
 
 ### Request/Response Interfaces
 - **EmailTemplate** - Email template with envelope type and phase

@@ -1,6 +1,6 @@
 /**
  * Main App Component
- * Sets up routing and authentication with Material UI
+ * Sets up routing and role-aware authentication with Material UI
  */
 
 import React, { useState } from 'react';
@@ -15,6 +15,7 @@ import {
   MenuItem,
   IconButton,
   Typography,
+  CircularProgress,
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
@@ -23,7 +24,8 @@ import {
   Logout as LogoutIcon,
   Help as HelpIcon,
 } from '@mui/icons-material';
-import { AuthProvider, AuthContext } from './context/AuthContext';
+import { AuthProvider } from './context/AuthContext';
+import { AuthContext } from './context/AuthContextValue';
 import { NotificationProvider } from './context/NotificationContext';
 import { NotificationDisplay } from './components/NotificationDisplay';
 import { LoginPage } from './pages/LoginPage';
@@ -37,20 +39,52 @@ import { DocumentationPage } from './pages/DocumentationPage';
 import { FeedbackPage } from './pages/FeedbackPage';
 import { ApprovalPage } from './pages/ApprovalPage';
 import { DeliveryTrackingPage } from './pages/DeliveryTrackingPage';
+import { canSubmitRequests, canUseAdminTools, canViewRequestList } from './utils/permissions';
 import './App.css';
 
-// Protected Route Component
-const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const getDefaultRouteForRole = (role?: string) => {
+  if (role === 'requester') return '/services';
+  if (role === 'orchestrator') return '/requests/new';
+  return '/dashboard';
+};
+
+const LoadingGate: React.FC = () => (
+  <Box sx={{ minHeight: '50vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <CircularProgress />
+  </Box>
+);
+
+const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: string[] }> = ({
+  children,
+  allowedRoles,
+}) => {
   const auth = React.useContext(AuthContext);
-  
+
+  if (auth?.isAuthLoading) {
+    return <LoadingGate />;
+  }
+
   if (!auth?.isAuthenticated) {
-    return <Navigate to="/login" />;
+    return <Navigate to="/login" replace />;
+  }
+
+  if (allowedRoles && !allowedRoles.includes(auth.user?.role || '')) {
+    return <Navigate to={getDefaultRouteForRole(auth.user?.role)} replace />;
   }
 
   return <>{children}</>;
 };
 
-// Navigation Links Component
+const RoleRedirect: React.FC = () => {
+  const auth = React.useContext(AuthContext);
+
+  if (auth?.isAuthLoading) {
+    return <LoadingGate />;
+  }
+
+  return <Navigate to={auth?.isAuthenticated ? getDefaultRouteForRole(auth.user?.role) : '/login'} replace />;
+};
+
 const NavLink: React.FC<{ icon: React.ReactNode; label: string; href: string }> = ({
   icon,
   label,
@@ -74,11 +108,11 @@ const NavLink: React.FC<{ icon: React.ReactNode; label: string; href: string }> 
   </Box>
 );
 
-// Layout Component
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const auth = React.useContext(AuthContext);
   const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const role = auth?.user?.role;
 
   if (!auth?.isAuthenticated) {
     return <>{children}</>;
@@ -100,7 +134,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: '#f5f5f5' }}>
-      {/* AppBar */}
       <AppBar position="static" sx={{ bgcolor: '#1976d2' }}>
         <Toolbar>
           <DashboardIcon sx={{ mr: 2 }} />
@@ -108,19 +141,22 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             Service Envelope
           </Typography>
 
-          {/* Navigation Links */}
           <Box sx={{ display: 'flex', gap: 3, mr: 3 }}>
-            <NavLink icon={<DashboardIcon fontSize="small" />} label="Requests" href="/dashboard" />
-            <NavLink icon={<BuildIcon fontSize="small" />} label="Services" href="/services" />
-            <NavLink icon={<SettingsIcon fontSize="small" />} label="Admin" href="/admin" />
-            <NavLink icon={<HelpIcon fontSize="small" />} label="Documentation" href="/documentation" />
+            {canViewRequestList(role) && (
+              <NavLink icon={<DashboardIcon fontSize="small" />} label="Requests" href="/dashboard" />
+            )}
+            {canSubmitRequests(role) && (
+              <NavLink icon={<BuildIcon fontSize="small" />} label="Services" href="/services" />
+            )}
+            {canUseAdminTools(role) && (
+              <NavLink icon={<SettingsIcon fontSize="small" />} label="Admin" href="/admin" />
+            )}
+            {canUseAdminTools(role) && (
+              <NavLink icon={<HelpIcon fontSize="small" />} label="Documentation" href="/documentation" />
+            )}
           </Box>
 
-          {/* User Menu */}
-          <IconButton
-            onClick={handleMenuOpen}
-            sx={{ ml: 2 }}
-          >
+          <IconButton onClick={handleMenuOpen} sx={{ ml: 2 }}>
             <Avatar
               sx={{
                 width: 36,
@@ -142,7 +178,10 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             transformOrigin={{ vertical: 'top', horizontal: 'right' }}
           >
             <MenuItem disabled>
-              <Typography variant="caption">{auth.user?.email}</Typography>
+              <Box>
+                <Typography variant="caption" sx={{ display: 'block' }}>{auth.user?.email}</Typography>
+                <Typography variant="caption" color="text.secondary">{role}</Typography>
+              </Box>
             </MenuItem>
             <MenuItem onClick={handleLogout}>
               <LogoutIcon sx={{ mr: 1 }} fontSize="small" />
@@ -152,11 +191,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </Toolbar>
       </AppBar>
 
-      {/* Main Content */}
       <Box component="main" sx={{ flex: 1, py: 3 }}>
-        <Container maxWidth="lg">
-          {children}
-        </Container>
+        <Container maxWidth="lg">{children}</Container>
       </Box>
     </Box>
   );
@@ -174,101 +210,99 @@ function App() {
   );
 }
 
-// App Inner Component (wrapped with notifications and route handling)
 function AppInner() {
   const location = useLocation();
   const isApprovalPage = location.pathname.startsWith('/approvals/');
-  const isPaymentPage = location.pathname.startsWith('/payment');
-  const isDeliveryPage = location.pathname.startsWith('/delivery/');
   const isFeedbackPage = location.pathname.startsWith('/feedback/');
 
   return (
     <>
-      {!isApprovalPage && !isPaymentPage && !isDeliveryPage && !isFeedbackPage ? (
+      {!isApprovalPage && !isFeedbackPage ? (
         <Layout>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
-            
+
             <Route
               path="/dashboard"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
                   <DashboardPage />
                 </ProtectedRoute>
               }
             />
-
             <Route
               path="/requests/:requestId"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={['requester', 'admin', 'super_admin']}>
                   <RequestDetailPage />
                 </ProtectedRoute>
               }
             />
-
             <Route
               path="/requests/new"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={['requester', 'admin', 'super_admin']}>
                   <EnhancedServiceRequestPage />
                 </ProtectedRoute>
               }
             />
-
             <Route
               path="/services"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={['requester', 'admin', 'super_admin']}>
                   <ServiceBrowsePage />
                 </ProtectedRoute>
               }
             />
-
             <Route
               path="/admin"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
                   <AdminPage />
                 </ProtectedRoute>
               }
             />
-
             <Route
               path="/documentation"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
                   <DocumentationPage />
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/delivery/:requestId/tracking"
+              element={
+                <ProtectedRoute allowedRoles={['requester', 'admin', 'super_admin']}>
+                  <DeliveryTrackingPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/payment"
+              element={
+                <ProtectedRoute allowedRoles={['requester', 'admin', 'super_admin']}>
+                  <PaymentPage />
+                </ProtectedRoute>
+              }
+            />
 
-            {/* Default redirect */}
-            <Route path="/" element={<Navigate to="/dashboard" />} />
-            <Route path="*" element={<Navigate to="/dashboard" />} />
+            <Route path="/" element={<RoleRedirect />} />
+            <Route path="*" element={<RoleRedirect />} />
           </Routes>
         </Layout>
       ) : (
         <Box sx={{ minHeight: '100vh', bgcolor: '#f5f5f5', py: 3 }}>
           <Container maxWidth="lg">
             <Routes>
-              {/* Public approval page - no layout, no authentication required */}
               <Route path="/approvals/:token" element={<ApprovalPage />} />
-              
-              {/* Public feedback page - no layout, no authentication required */}
               <Route path="/feedback/:token" element={<FeedbackPage />} />
-              
-              {/* Public delivery tracking page - no layout, no authentication required */}
-              <Route path="/delivery/:requestId/tracking" element={<DeliveryTrackingPage />} />
-              
-              {/* Public payment page - no layout, no authentication required */}
-              <Route path="/payment" element={<PaymentPage />} />
               <Route path="*" element={<Navigate to="/login" />} />
             </Routes>
           </Container>
         </Box>
       )}
-      
+
       <NotificationDisplay />
     </>
   );

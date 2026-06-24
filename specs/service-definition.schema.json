@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Service Definition Schema v1.0.3 - June 6, 2026",
-  "description": "Complete canonical schema for Service Envelope YAML definitions. Aligns with SERVICE_DEFINITION_RULES.yaml (the bible). v1.0.3: Current MongoDB-backed schema used by the UI and admin builder.",
+  "title": "Service Definition Schema v1.0.5 - June 24, 2026",
+  "description": "Complete canonical schema for Service Envelope YAML definitions. Aligns with SERVICE_DEFINITION_RULES.yaml. v1.0.5 adds OTP-era bearer auth assumptions and default lifecycle email template fallback fields.",
   "type": "object",
   "required": ["name", "type", "description", "envelopes"],
   "properties": {
@@ -161,6 +161,22 @@
             },
             "required": ["type", "required"]
           }
+        },
+        "emailTemplateStartEnvelope": {
+          "type": "string",
+          "description": "Optional request-start email template override"
+        },
+        "emailTemplateEndEnvelope": {
+          "type": "string",
+          "description": "Optional request-end email template override"
+        },
+        "defaultEmailTemplateStartEnvelope": {
+          "type": "string",
+          "description": "Optional request-start default template before generic fallback"
+        },
+        "defaultEmailTemplateEndEnvelope": {
+          "type": "string",
+          "description": "Optional request-end default template before generic fallback"
         }
       }
     },
@@ -206,13 +222,25 @@
           "type": "string",
           "description": "Email template ID sent when approval envelope begins (e.g., SERV-999-approval-start)"
         },
+        "defaultEmailTemplateStartEnvelope": {
+          "type": "string",
+          "description": "Default approval-start template used when no override is configured"
+        },
         "emailTemplateEndEnvelope": {
           "type": "string",
           "description": "Email template ID sent when approval envelope completes (e.g., SERV-999-approval-end)"
         },
+        "defaultEmailTemplateEndEnvelope": {
+          "type": "string",
+          "description": "Default approval-end template used when no override is configured"
+        },
         "emailTemplateCancelEnvelope": {
           "type": "string",
           "description": "Email template ID sent when approval is DENIED and request is CANCELLED (e.g., SERV-999-request-cancelled)"
+        },
+        "defaultEmailTemplateCancelEnvelope": {
+          "type": "string",
+          "description": "Default approval-cancel template used before service/global generic fallback"
         },
         "expiryHours": {
           "type": "number",
@@ -276,13 +304,26 @@
           "type": "string",
           "description": "Email template ID sent when payment is required (e.g., SERV-999-payment-start, includes {{paymentLink}})"
         },
+        "defaultEmailTemplateStartEnvelope": {
+          "type": "string",
+          "description": "Default payment-start template used when no override is configured"
+        },
         "emailTemplateEndEnvelope": {
           "type": "string",
           "description": "Email template ID sent when payment is received (e.g., SERV-999-payment-end)"
         },
+        "defaultEmailTemplateEndEnvelope": {
+          "type": "string",
+          "description": "Default payment-end receipt template used before generic fallback"
+        },
         "emailTemplateCancelEnvelope": {
           "type": "string",
           "description": "Email template ID sent when payment expires and request is CANCELLED (e.g., SERV-999-request-cancelled)"
+        }
+        ,
+        "defaultEmailTemplateCancelEnvelope": {
+          "type": "string",
+          "description": "Default payment-cancel template used before service/global generic fallback"
         }
       }
     },
@@ -367,13 +408,26 @@
           "type": "string",
           "description": "Email template ID sent when processing begins (e.g., SERV-999-processing-start)"
         },
+        "defaultEmailTemplateStartEnvelope": {
+          "type": "string",
+          "description": "Default processing-start template used when no override is configured"
+        },
         "emailTemplateEndEnvelope": {
           "type": "string",
           "description": "Email template ID sent when processing completes (e.g., SERV-999-processing-end)"
         },
+        "defaultEmailTemplateEndEnvelope": {
+          "type": "string",
+          "description": "Default processing-end template used when no override is configured"
+        },
         "emailTemplateCancelEnvelope": {
           "type": "string",
           "description": "Email template ID sent when task fails and request is CANCELLED (e.g., SERV-999-request-cancelled)"
+        }
+        ,
+        "defaultEmailTemplateCancelEnvelope": {
+          "type": "string",
+          "description": "Default processing-cancel template used before service/global generic fallback"
         }
       }
     },
@@ -495,9 +549,21 @@
           "type": "string",
           "description": "Email template ID sent when delivery envelope begins (e.g., SERV-999-delivery-start)"
         },
+        "defaultEmailTemplateStartEnvelope": {
+          "type": "string",
+          "description": "Default delivery-start template used when no override is configured"
+        },
         "emailTemplateEndEnvelope": {
           "type": "string",
           "description": "Email template ID sent when delivery completes (e.g., SERV-999-delivery-end)"
+        },
+        "defaultEmailTemplateEndEnvelope": {
+          "type": "string",
+          "description": "Default delivery-end template used when no override is configured"
+        },
+        "defaultEmailTemplateCancelEnvelope": {
+          "type": "string",
+          "description": "Default delivery-cancel template used before service/global generic fallback"
         },
         "statusCodes": {
           "type": "object",
@@ -548,9 +614,21 @@
           "type": "string",
           "description": "Email template ID sent when feedback envelope begins (e.g., SERV-999-feedback-start, includes {{feedbackLink}})"
         },
+        "defaultEmailTemplateStartEnvelope": {
+          "type": "string",
+          "description": "Default feedback-start template used when no override is configured"
+        },
         "emailTemplateEndEnvelope": {
           "type": "string",
           "description": "Email template ID sent when feedback is submitted (e.g., SERV-999-feedback-end)"
+        },
+        "defaultEmailTemplateEndEnvelope": {
+          "type": "string",
+          "description": "Default feedback-end template used when no override is configured"
+        },
+        "defaultEmailTemplateCancelEnvelope": {
+          "type": "string",
+          "description": "Default feedback-cancel template used before service/global generic fallback"
         }
       }
     }

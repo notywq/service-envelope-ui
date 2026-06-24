@@ -82,13 +82,14 @@ const ParameterTypesData = [
   {
     type: 'Date',
     description: 'Date picker',
-    validation: 'minDate, maxDate',
+    validation: 'format, min, max',
     example: `requestDate:
   type: Date
   required: true
   description: "Request submission date"
-  minDate: "2025-01-01"
-  maxDate: "2025-12-31"`,
+  format: YYYY-MM-DD
+  min: "2026-01-01"
+  max: "2026-12-31"`,
   },
   {
     type: 'Dropdown',
@@ -120,11 +121,12 @@ const ParameterTypesData = [
   {
     type: 'Checkboxes',
     description: 'Multiple select from options',
-    validation: 'options array, maxSelections',
+    validation: 'options array, minSelected, maxSelected',
     example: `courses:
   type: Checkboxes
   required: true
-  maxSelections: 5
+  minSelected: 1
+  maxSelected: 5
   options:
     - value: CS101
       label: Intro to CS
@@ -149,7 +151,7 @@ const EnvelopeGuideData = [
     description: 'Review and approval by authorized personnel',
     purpose: 'Gate the request - ensure it meets approval criteria',
     required: 'approvalRules, requiredApprovers',
-    optional: 'emailTemplateStartEnvelope, emailTemplateEndEnvelope',
+    optional: 'emailTemplateStartEnvelope, emailTemplateEndEnvelope, defaultEmailTemplateStartEnvelope, defaultEmailTemplateEndEnvelope',
     emailTemplates: ['SERV-X-approval-start', 'SERV-X-approval-end'],
   },
   {
@@ -158,7 +160,7 @@ const EnvelopeGuideData = [
     description: 'Payment collection via MAYA gateway',
     purpose: 'Collect fees or charges from requestor',
     required: 'charges array with item, amount, currency',
-    optional: 'paymentProvider (default: maya)',
+    optional: 'paymentProvider (default: maya), defaultEmailTemplateStartEnvelope, defaultEmailTemplateEndEnvelope',
     emailTemplates: ['SERV-X-payment-start', 'SERV-X-payment-end'],
   },
   {
@@ -167,7 +169,7 @@ const EnvelopeGuideData = [
     description: 'Backend API task execution',
     purpose: 'Perform business logic and integrate with external systems',
     required: 'tasks array with API endpoints',
-    optional: 'stopOnFailure (default: true), timeout, retries',
+    optional: 'stopOnFailure (default: true), defaultEmailTemplateStartEnvelope, defaultEmailTemplateEndEnvelope, defaultEmailTemplateCancelEnvelope',
     emailTemplates: ['SERV-X-processing-start', 'SERV-X-processing-end'],
   },
   {
@@ -176,7 +178,7 @@ const EnvelopeGuideData = [
     description: 'Document/result delivery to requestor',
     purpose: 'Get deliverables to requestor via email, mail, or pickup',
     required: 'deliveryMethods array',
-    optional: 'default delivery method',
+    optional: 'defaultEmailTemplateStartEnvelope, defaultEmailTemplateEndEnvelope',
     emailTemplates: ['SERV-X-delivery-start', 'SERV-X-delivery-end'],
   },
   {
@@ -185,7 +187,7 @@ const EnvelopeGuideData = [
     description: 'Post-service feedback collection',
     purpose: 'Gather customer satisfaction and service quality data',
     required: 'required: true/false',
-    optional: 'expiryDays (default: 30), surveyId',
+    optional: 'expiryDays, autoCloseAfterHours, defaultEmailTemplateStartEnvelope, defaultEmailTemplateEndEnvelope',
     emailTemplates: ['SERV-X-feedback-start', 'SERV-X-feedback-end'],
   },
 ];
@@ -219,14 +221,14 @@ emailTemplateEndEnvelope: SERV-001-approval-end`,
   {
     mistake: 'Missing required approval fields',
     wrong: `approval:
-  requiresApproval: true
-  # Missing approvalRules and requiredApprovers`,
+  required: true
+  # Missing approvalRules`,
     right: `approval:
-  requiresApproval: true
+  required: true
   approvalRules:
     type: all_must_approve
-  requiredApprovers:
-    - approver@example.com`,
+    requiredApprovers:
+      - approver@example.com`,
     impact: '⚠️ Request will be stuck, approval cannot proceed',
   },
 ];
@@ -399,28 +401,37 @@ export const AdminLearningGuide: React.FC = () => {
           <Card>
             <CardContent sx={{ textAlign: 'left' }}>
               <Typography variant="h6" gutterBottom sx={{ textAlign: 'left' }}>
-                Service Definition Structure
+                Service Definition Structure (Schema 1.0.5)
               </Typography>
               <Paper sx={{ p: 2, backgroundColor: '#f5f5f5', overflow: 'auto', textAlign: 'left' }}>
                 <code style={{ fontSize: 11, whiteSpace: 'pre', display: 'block' }}>
-{`serviceId: "SERVICE-001"
-type: "transcript-of-records"
-name: "Transcript of Records"
-description: "Official transcript request"
+{`id: SERV-001
+type: transcript-of-records
+name: Transcript of Records
+description: Official transcript request
 
 envelopes:
   request:
+    required: true
     parameters:
+      email:
+        type: String
+        required: true
       firstName:
         type: String
         required: true
+    defaultEmailTemplateStartEnvelope: request-start
+    defaultEmailTemplateEndEnvelope: request-end
 
   approval:
-    requiresApproval: true
+    required: true
     approvalRules:
       type: all_must_approve
-    requiredApprovers:
-      - approver@example.com
+      requiredApprovers:
+        - approver@example.com
+    defaultEmailTemplateStartEnvelope: approval-start
+    defaultEmailTemplateEndEnvelope: approval-end
+    defaultEmailTemplateCancelEnvelope: request-denied
 
   payment:
     required: true
@@ -428,21 +439,31 @@ envelopes:
       - item: "Transcript Copy"
         amount: 50000
         currency: PHP
+    defaultEmailTemplateEndEnvelope: payment-end
 
   processing:
+    required: true
     tasks:
       - type: api_call
+        name: send_request
         method: POST
         url: "https://api.example.com/..."
+        timeout: 30000
+        retries: 1
+        successCodes: [200, 201]
+    defaultEmailTemplateStartEnvelope: processing-start
+    defaultEmailTemplateEndEnvelope: processing-end
 
   delivery:
-    methods:
-      - type: email
+    required: true
+    deliveryMethods:
+      email:
+        enabled: true
         recipient: "{{email}}"
+    defaultEmailTemplateStartEnvelope: delivery-email-document
 
   feedback:
-    required: true
-    expiryDays: 30`}
+    required: false`}
                 </code>
               </Paper>
             </CardContent>
@@ -451,21 +472,23 @@ envelopes:
           <Card>
             <CardContent sx={{ textAlign: 'left' }}>
               <Typography variant="h6" gutterBottom sx={{ textAlign: 'left' }}>
-                Email Template Naming Convention
+                Email Template Resolution
               </Typography>
               <Paper sx={{ p: 2, backgroundColor: '#f5f5f5', textAlign: 'left' }}>
                 <Typography variant="body2" component="div" sx={{ fontFamily: 'monospace', whiteSpace: 'pre', textAlign: 'left' }}>
-{`SERV-{serviceNumber}-{envelopeType}-{phase}
+{`Resolution order:
+  1. emailTemplateStartEnvelope / emailTemplateEndEnvelope override
+  2. defaultEmailTemplateStartEnvelope / defaultEmailTemplateEndEnvelope
+  3. {serviceType}-{envelope}-{phase}
+  4. {envelope}-{phase}
 
 Examples:
-  SERV-001-request-start    (Request envelope starts)
-  SERV-001-approval-start   (Approval notification to approvers)
-  SERV-001-approval-end     (Approval complete to requestor)
-  SERV-001-payment-start    (Payment request email)
-  SERV-001-payment-end      (Payment confirmation)
-  SERV-001-processing-start (Processing started notification)
-  SERV-001-delivery-start   (Document ready for delivery)
-  SERV-001-feedback-start   (Feedback survey link)`}
+  approval-start
+  request-denied
+  payment-end
+  delivery-email-document
+  delivery-pickup-ready
+  otp-login`}
                 </Typography>
               </Paper>
             </CardContent>
@@ -509,8 +532,8 @@ Examples:
           </Card>
 
           <Alert severity="success">
-            <strong>Pro Tip:</strong> Use the Email Template Manager to create and test templates with live preview
-            before publishing your service definition.
+            <strong>Pro Tip:</strong> Service YAML templates are optional overrides. Generic Mongo templates keep core
+            emails working even when a service omits template IDs.
           </Alert>
         </Stack>
       </TabPanel>

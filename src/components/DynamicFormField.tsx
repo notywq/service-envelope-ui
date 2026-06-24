@@ -188,13 +188,14 @@ export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
       case 'Checkboxes': {
         const checkboxesSchema = schema as any;
         const selectedValues = Array.isArray(value) ? value : [];
+        const maxSelected = checkboxesSchema.maxSelected ?? checkboxesSchema.maxSelections;
         const handleChange = (optionValue: any) => {
           const newValues = selectedValues.includes(optionValue)
             ? selectedValues.filter((v) => v !== optionValue)
             : [...selectedValues, optionValue];
           
           // Check max selections
-          if (checkboxesSchema.maxSelections && newValues.length > checkboxesSchema.maxSelections) {
+          if (maxSelected && newValues.length > maxSelected) {
             return;
           }
           onChange(newValues);
@@ -216,9 +217,9 @@ export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                       onChange={() => handleChange(option.value)}
                       disabled={
                         disabled ||
-                        (checkboxesSchema.maxSelections &&
+                        (maxSelected &&
                           !selectedValues.includes(option.value) &&
-                          selectedValues.length >= checkboxesSchema.maxSelections)
+                          selectedValues.length >= maxSelected)
                       }
                     />
                   }
@@ -253,7 +254,7 @@ export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
           />
         );
     }
-  }, [schema, fieldName, value, label, isRequired, description, error, disabled, onChange]);
+  }, [schema, fieldName, value, label, isRequired, description, error, helperText, disabled, onChange]);
 
   return <Box sx={{ mb: 2 }}>{renderField}</Box>;
 };

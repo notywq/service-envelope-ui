@@ -36,7 +36,9 @@ import {
 } from '@mui/icons-material';
 import { api } from '../services/api';
 import { useNotification } from '../hooks/useNotification';
+import { useAuth } from '../hooks/useAuth';
 import { buildDeliverySimulationPayload, getDeliverySimulationPresets, normalizeDeliveryMethod } from '../utils/deliverySimulationPresets';
+import { canViewRequestList, isRequester } from '../utils/permissions';
 import type { ServiceRequest } from '../types';
 
 /**
@@ -102,12 +104,12 @@ const EnvelopeContentRenderer: React.FC<{
     // Try to get approval rules from the envelope data
     const approvalRules = envelope?.approvalRules;
     const approvers = envelope?.approvers;
-    const requiresApproval = envelope?.requiresApproval;
+    const approvalRequired = envelope?.required !== false && envelope?.requiresApproval !== false;
     const status = envelope?.status;
     const specificApprover = approvalRules?.specificApprover || approvalRules?.specificApproverId;
 
     // If approval is not required at service level, show that
-    if (requiresApproval === false) {
+    if (!approvalRequired) {
       return (
         <Box>
           <Typography variant="body2" color="textSecondary">
@@ -724,7 +726,14 @@ const EnvelopeContentRenderer: React.FC<{
               size="small"
             />
             {envelope?.notificationRequired && <Chip label="Notifications Enabled" size="small" color="info" variant="outlined" />}
-            {envelope?.emailTemplateId && <Chip label={envelope.emailTemplateId} size="small" variant="outlined" />}
+            {[
+              envelope?.emailTemplateStartEnvelope,
+              envelope?.emailTemplateEndEnvelope,
+              envelope?.defaultEmailTemplateStartEnvelope,
+              envelope?.defaultEmailTemplateEndEnvelope,
+            ].filter(Boolean).map((templateId: string) => (
+              <Chip key={templateId} label={templateId} size="small" variant="outlined" />
+            ))}
           </Stack>
         </Box>
 
@@ -871,6 +880,7 @@ export const RequestDetailPage: React.FC = () => {
   const { requestId } = useParams<{ requestId: string }>();
   const navigate = useNavigate();
   const { addNotification } = useNotification();
+  const { user } = useAuth();
 
   const [request, setRequest] = useState<ServiceRequest | null>(null);
   const [loading, setLoading] = useState(true);
@@ -950,7 +960,7 @@ export const RequestDetailPage: React.FC = () => {
       setDeliveryMethodInfo(methodData);
       setDeliveryCurrent(currentData);
       addNotification('Request refreshed', 'success');
-    } catch (err: any) {
+    } catch {
       addNotification('Failed to refresh request', 'error');
     }
   };
@@ -975,7 +985,7 @@ export const RequestDetailPage: React.FC = () => {
       setActionLoading(true);
       await api.cancelRequest(requestId);
       addNotification('Request cancelled', 'success');
-      setTimeout(() => navigate('/dashboard'), 1500);
+      setTimeout(() => navigate(canViewRequestList(user?.role) ? '/dashboard' : '/services'), 1500);
     } catch (err: any) {
       addNotification(err.response?.data?.error || 'Failed to cancel request', 'error');
     } finally {
@@ -1130,7 +1140,7 @@ export const RequestDetailPage: React.FC = () => {
               Refresh
             </Button>
 
-            {request.status === 'pending_external' && (
+            {!isRequester(user?.role) && request.status === 'pending_external' && (
               <Button
                 variant="contained"
                 color="primary"
@@ -1143,16 +1153,18 @@ export const RequestDetailPage: React.FC = () => {
               </Button>
             )}
 
-            <Button
-              variant="outlined"
-              color="error"
-              startIcon={<DeleteIcon />}
-              onClick={() => setCancelDialogOpen(true)}
-              disabled={actionLoading || request.status === 'completed'}
-              sx={{ minWidth: 132 }}
-            >
-              Cancel
-            </Button>
+            {!isRequester(user?.role) && (
+              <Button
+                variant="outlined"
+                color="error"
+                startIcon={<DeleteIcon />}
+                onClick={() => setCancelDialogOpen(true)}
+                disabled={actionLoading || request.status === 'completed'}
+                sx={{ minWidth: 132 }}
+              >
+                Cancel
+              </Button>
+            )}
           </Stack>
 
           <Stack
@@ -1164,7 +1176,7 @@ export const RequestDetailPage: React.FC = () => {
               justifyContent: { xs: 'flex-start', md: 'flex-end' },
             }}
           >
-            {simulationPresets.length > 0 ? (
+            {!isRequester(user?.role) && simulationPresets.length > 0 ? (
               simulationPresets.map((preset) => (
                 <Button
                   key={preset.buttonKey}
@@ -1180,7 +1192,7 @@ export const RequestDetailPage: React.FC = () => {
                   {simulatingDelivery ? 'Simulating...' : preset.label}
                 </Button>
               ))
-            ) : (
+            ) : !isRequester(user?.role) ? (
               <Button
                 variant="contained"
                 color="success"
@@ -1189,7 +1201,7 @@ export const RequestDetailPage: React.FC = () => {
               >
                 No Delivery Method
               </Button>
-            )}
+            ) : null}
           </Stack>
 
           {!isDeliveryTurnActive && (

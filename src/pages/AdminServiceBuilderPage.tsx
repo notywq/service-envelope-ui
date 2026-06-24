@@ -57,7 +57,9 @@ import { useNotification } from '../hooks/useNotification';
 import { useAuth } from '../hooks/useAuth';
 import { AdminLearningGuide } from '../components/AdminLearningGuide';
 import { EnhancedEmailTemplateManager } from '../components/EnhancedEmailTemplateManager';
+import { AuthUserManager } from '../components/AuthUserManager';
 import { schemaValidator } from '../utils/schemaValidator';
+import { isSuperAdmin } from '../utils/permissions';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -75,7 +77,7 @@ function TabPanel(props: TabPanelProps) {
 }
 
 export const AdminServiceBuilderPage: React.FC = () => {
-  const EXPECTED_SCHEMA_VERSION = '1.0.3';
+  const EXPECTED_SCHEMA_VERSION = '1.0.5';
   const { addNotification } = useNotification();
   const { user } = useAuth();
 
@@ -143,7 +145,7 @@ export const AdminServiceBuilderPage: React.FC = () => {
         setLoadingServices(true);
         const response = await api.getServices();
         setServices(response.services || []);
-      } catch (err) {
+      } catch {
         addNotification('Failed to load services', 'error');
       } finally {
         setLoadingServices(false);
@@ -486,26 +488,34 @@ envelopes:
       firstName:
         type: String
         required: true
+        description: "Requester first name"
         minLength: 2
         maxLength: 100
+      email:
+        type: String
+        required: true
+        description: "Requester email address"
+        minLength: 5
+        maxLength: 100
+        pattern: "^[^\\\\s@]+@[^\\\\s@]+\\\\.[^\\\\s@]+$"
+    defaultEmailTemplateStartEnvelope: request-start
+    defaultEmailTemplateEndEnvelope: request-end
   
   approval:
     required: true
     approvalRules:
       type: specific_approver
       specificApprover: approver@example.com
-    emailTemplateStartEnvelope: SERV-001-approval-start
-    emailTemplateEndEnvelope: SERV-001-approval-end
+    defaultEmailTemplateStartEnvelope: approval-start
+    defaultEmailTemplateEndEnvelope: approval-end
+    defaultEmailTemplateCancelEnvelope: request-denied
   
   payment:
-    required: true
-    charges:
-      - item: Processing Fee
-        amount: 1000
-        currency: PHP
+    required: false
   
   processing:
     required: true
+    stopOnFailure: true
     tasks:
       - name: verify_request
         type: api_call
@@ -514,6 +524,9 @@ envelopes:
         timeout: 30000
         retries: 1
         successCodes: [200, 201]
+    defaultEmailTemplateStartEnvelope: processing-start
+    defaultEmailTemplateEndEnvelope: processing-end
+    defaultEmailTemplateCancelEnvelope: request-cancelled
   
   delivery:
     required: true
@@ -522,10 +535,11 @@ envelopes:
         enabled: true
         subject: "Service Update - {{requestId}}"
         recipient: "{{email}}"
+    defaultEmailTemplateStartEnvelope: delivery-email-document
+    defaultEmailTemplateEndEnvelope: delivery-end
   
   feedback:
-    required: true
-    expiryDays: 30`;
+    required: false`;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -610,6 +624,7 @@ envelopes:
           <Tab label="YAML Structure Guide" />
           <Tab label="Examples" />
           <Tab label="Email Templates (Enhanced)" />
+          {isSuperAdmin(user?.role) && <Tab label="OTP Users" />}
         </Tabs>
 
         {/* Builder Tab */}
@@ -938,8 +953,10 @@ envelopes:
   request:
     required: true
     parameters:
+      email: { type: String, required: true }
       param1: { type: String, required: true }
-      param2: { type: Number, required: false }
+    defaultEmailTemplateStartEnvelope: request-start
+    defaultEmailTemplateEndEnvelope: request-end
   
   approval:
     required: true|false
@@ -947,6 +964,9 @@ envelopes:
       type: all_must_approve | any_one | specific_approver | complex
       requiredApprovers: [emails]
     expiryHours: 48
+    defaultEmailTemplateStartEnvelope: approval-start
+    defaultEmailTemplateEndEnvelope: approval-end
+    defaultEmailTemplateCancelEnvelope: request-denied
   
   payment:
     required: true|false
@@ -954,6 +974,8 @@ envelopes:
       - item: Item Name
         amount: 1000
         currency: PHP
+    defaultEmailTemplateStartEnvelope: payment-start
+    defaultEmailTemplateEndEnvelope: payment-end
   
   processing:
     required: true|false
@@ -965,6 +987,9 @@ envelopes:
         timeout: 30000
         retries: 1
         successCodes: [200]
+    defaultEmailTemplateStartEnvelope: processing-start
+    defaultEmailTemplateEndEnvelope: processing-end
+    defaultEmailTemplateCancelEnvelope: request-cancelled
   
   delivery:
     required: true|false
@@ -972,6 +997,8 @@ envelopes:
       email: { enabled: true, recipient: "{{email}}" }
       physical_mail: { enabled: false }
       pickup: { enabled: false }
+    defaultEmailTemplateStartEnvelope: delivery-email-document
+    defaultEmailTemplateEndEnvelope: delivery-end
   
   feedback:
     required: true|false`}
@@ -1044,6 +1071,11 @@ envelopes:
         required: true
         minLength: 5
         maxLength: 20
+      email:
+        type: String
+        required: true
+        description: "Requester email address"
+        pattern: "^[^\\\\s@]+@[^\\\\s@]+\\\\.[^\\\\s@]+$"
       numberOfCopies:
         type: Number
         required: true
@@ -1069,6 +1101,9 @@ envelopes:
         - dean@mapua.edu.ph
         - registrar@mapua.edu.ph
     expiryHours: 48
+    defaultEmailTemplateStartEnvelope: approval-start
+    defaultEmailTemplateEndEnvelope: approval-end
+    defaultEmailTemplateCancelEnvelope: request-denied
   
   payment:
     required: true
@@ -1079,6 +1114,8 @@ envelopes:
       - item: Printing per copy
         amount: 50
         currency: PHP
+    defaultEmailTemplateStartEnvelope: payment-start
+    emailTemplateEndEnvelope: SERV-001-payment-end
   
   processing:
     required: true
@@ -1104,6 +1141,9 @@ envelopes:
         timeout: 30000
         retries: 1
         successCodes: [200, 201]
+    defaultEmailTemplateStartEnvelope: processing-start
+    defaultEmailTemplateEndEnvelope: processing-end
+    defaultEmailTemplateCancelEnvelope: request-cancelled
   
   delivery:
     required: true
@@ -1112,6 +1152,8 @@ envelopes:
         enabled: true
         subject: "Your Transcript Request - {{requestId}}"
         recipient: "{{email}}"
+    defaultEmailTemplateStartEnvelope: delivery-email-document
+    defaultEmailTemplateEndEnvelope: delivery-end
   
   feedback:
     required: false`,
@@ -1137,6 +1179,11 @@ envelopes:
         required: true
         minLength: 3
         maxLength: 100
+      email:
+        type: String
+        required: true
+        description: "Requester email address"
+        pattern: "^[^\\\\s@]+@[^\\\\s@]+\\\\.[^\\\\s@]+$"
       visitDate:
         type: Date
         required: true
@@ -1155,6 +1202,9 @@ envelopes:
       type: specific_approver
       specificApprover: clinic@mapua.edu.ph
     expiryHours: 24
+    defaultEmailTemplateStartEnvelope: approval-start
+    defaultEmailTemplateEndEnvelope: approval-end
+    defaultEmailTemplateCancelEnvelope: request-denied
   
   payment:
     required: false
@@ -1176,6 +1226,9 @@ envelopes:
         timeout: 30000
         retries: 1
         successCodes: [200]
+    defaultEmailTemplateStartEnvelope: processing-start
+    defaultEmailTemplateEndEnvelope: processing-end
+    defaultEmailTemplateCancelEnvelope: request-cancelled
   
   delivery:
     required: true
@@ -1183,6 +1236,8 @@ envelopes:
       email:
         enabled: true
         recipient: "{{email}}"
+    defaultEmailTemplateStartEnvelope: delivery-email-document
+    defaultEmailTemplateEndEnvelope: delivery-end
   
   feedback:
     required: true`,
@@ -1206,6 +1261,11 @@ envelopes:
       academicYear:
         type: String
         required: true
+      email:
+        type: String
+        required: true
+        description: "Requester email address"
+        pattern: "^[^\\\\s@]+@[^\\\\s@]+\\\\.[^\\\\s@]+$"
       roomType:
         type: Radio
         required: true
@@ -1232,6 +1292,9 @@ envelopes:
         - housing@mapua.edu.ph
         - finance@mapua.edu.ph
     expiryHours: 72
+    defaultEmailTemplateStartEnvelope: approval-start
+    defaultEmailTemplateEndEnvelope: approval-end
+    defaultEmailTemplateCancelEnvelope: request-denied
   
   payment:
     required: true
@@ -1245,6 +1308,8 @@ envelopes:
       - item: Utilities
         amount: 1000
         currency: PHP
+    defaultEmailTemplateStartEnvelope: payment-start
+    defaultEmailTemplateEndEnvelope: payment-end
   
   processing:
     required: true
@@ -1277,6 +1342,9 @@ envelopes:
         timeout: 30000
         retries: 1
         successCodes: [200, 201]
+    defaultEmailTemplateStartEnvelope: processing-start
+    defaultEmailTemplateEndEnvelope: processing-end
+    defaultEmailTemplateCancelEnvelope: request-cancelled
   
   delivery:
     required: true
@@ -1284,6 +1352,8 @@ envelopes:
       email:
         enabled: true
         recipient: "{{email}}"
+    defaultEmailTemplateStartEnvelope: delivery-email-document
+    defaultEmailTemplateEndEnvelope: delivery-end
   
   feedback:
     required: true`,
@@ -1304,6 +1374,11 @@ envelopes:
       studentId:
         type: String
         required: true
+      email:
+        type: String
+        required: true
+        description: "Requester email address"
+        pattern: "^[^\\\\s@]+@[^\\\\s@]+\\\\.[^\\\\s@]+$"
       courseName:
         type: Dropdown
         required: true
@@ -1333,6 +1408,9 @@ envelopes:
         - advisor3@mapua.edu.ph
       threshold: 1
     expiryHours: 48
+    defaultEmailTemplateStartEnvelope: approval-start
+    defaultEmailTemplateEndEnvelope: approval-end
+    defaultEmailTemplateCancelEnvelope: request-denied
   
   payment:
     required: false
@@ -1354,6 +1432,9 @@ envelopes:
         timeout: 30000
         retries: 1
         successCodes: [200, 201]
+    defaultEmailTemplateStartEnvelope: processing-start
+    defaultEmailTemplateEndEnvelope: processing-end
+    defaultEmailTemplateCancelEnvelope: request-cancelled
   
   delivery:
     required: true
@@ -1361,6 +1442,8 @@ envelopes:
       email:
         enabled: true
         recipient: "{{email}}"
+    defaultEmailTemplateStartEnvelope: delivery-email-document
+    defaultEmailTemplateEndEnvelope: delivery-end
   
   feedback:
     required: false`,
@@ -1423,7 +1506,7 @@ envelopes:
                 <Box>2. Paste into the <strong>Builder</strong> tab as your starting point</Box>
                 <Box>3. Modify id, type, names, parameters for your service</Box>
                 <Box>4. Update approvers, charges, and processing tasks as needed</Box>
-                <Box>5. Create email templates in the <strong>Email Templates</strong> tab matching the templateId references</Box>
+                <Box>5. Create optional service overrides or rely on default/generic templates such as <strong>payment-end</strong> and <strong>delivery-email-document</strong></Box>
                 <Box>6. Click <strong>Validate & Save</strong> in the Builder</Box>
               </Stack>
             </Alert>
@@ -1446,6 +1529,14 @@ envelopes:
             <EnhancedEmailTemplateManager />
           </Box>
         </TabPanel>
+
+        {isSuperAdmin(user?.role) && (
+          <TabPanel value={tabValue} index={6}>
+            <Box sx={{ p: 3 }}>
+              <AuthUserManager />
+            </Box>
+          </TabPanel>
+        )}
       </Paper>
 
       {/* Delete Confirmation Dialog */}

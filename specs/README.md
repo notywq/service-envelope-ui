@@ -23,7 +23,7 @@
 - On page init: `GET /api/admin/schema/versions/latest`
 - Store into validator: `schemaValidator.setSchema(schemaData.schema, schemaData.version)`
 - Optional hard refresh: `POST /api/admin/schema/reload` then `GET /api/admin/schema/versions/latest`
-- Current expected version in UI checks: `1.0.3`
+- Current expected version in UI checks: `1.0.5`
 - Save should be blocked when schema cannot be loaded (no fallback "valid" state)
 
 ## Deprecated
