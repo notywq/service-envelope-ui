@@ -57,7 +57,7 @@ import { useNotification } from '../hooks/useNotification';
 import { useAuth } from '../hooks/useAuth';
 import { AdminLearningGuide } from '../components/AdminLearningGuide';
 import { EnhancedEmailTemplateManager } from '../components/EnhancedEmailTemplateManager';
-import { AuthUserManager } from '../components/AuthUserManager';
+import { AccessManagement } from '../components/AccessManagement';
 import { schemaValidator } from '../utils/schemaValidator';
 import { isSuperAdmin } from '../utils/permissions';
 
@@ -624,7 +624,7 @@ envelopes:
           <Tab label="YAML Structure Guide" />
           <Tab label="Examples" />
           <Tab label="Email Templates (Enhanced)" />
-          {isSuperAdmin(user?.role) && <Tab label="OTP Users" />}
+          {isSuperAdmin(user?.role) && <Tab label="Access Management" />}
         </Tabs>
 
         {/* Builder Tab */}
@@ -1533,7 +1533,7 @@ envelopes:
         {isSuperAdmin(user?.role) && (
           <TabPanel value={tabValue} index={6}>
             <Box sx={{ p: 3 }}>
-              <AuthUserManager />
+              <AccessManagement />
             </Box>
           </TabPanel>
         )}

@@ -43,6 +43,53 @@ export interface AuthUser {
   updatedAt?: string;
 }
 
+export type ApiClientRole = 'orchestrator';
+
+export interface ApiClientRecord {
+  clientId: string;
+  name: string;
+  role: ApiClientRole | string;
+  scopes: string[];
+  isActive: boolean;
+  metadata?: Record<string, any>;
+  lastUsedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  rotatedAt?: string | null;
+}
+
+export interface ApiClientCredentials {
+  clientId: string;
+  clientSecret: string;
+}
+
+export interface ApiClientSecretResponse {
+  success: boolean;
+  client: ApiClientRecord;
+  credentials: ApiClientCredentials;
+  message?: string;
+}
+
+export interface ApiClientScope {
+  scope: string;
+  label: string;
+  description?: string;
+  endpoints?: string[];
+}
+
+export interface ApiClientScopeGroup {
+  id: string;
+  label: string;
+  description?: string;
+  scopes: ApiClientScope[];
+}
+
+export interface ApiClientScopesResponse {
+  scopeGroups: ApiClientScopeGroup[];
+  scopes: string[];
+  total: number;
+}
+
 // Envelopes
 export interface RequestEnvelope {
   status: string;

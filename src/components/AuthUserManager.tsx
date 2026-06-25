@@ -21,9 +21,16 @@ import {
   TableHead,
   TableRow,
   TextField,
+  IconButton,
+  Tooltip,
   Typography,
 } from '@mui/material';
-import { Refresh as RefreshIcon, Save as SaveIcon } from '@mui/icons-material';
+import {
+  Edit as EditIcon,
+  PersonOff as DeactivateIcon,
+  Refresh as RefreshIcon,
+  Save as SaveIcon,
+} from '@mui/icons-material';
 import { api } from '../services/api';
 import { useNotification } from '../hooks/useNotification';
 import type { AuthUser } from '../types';
@@ -239,11 +246,24 @@ export const AuthUserManager: React.FC = () => {
                   <TableCell><Chip label={user.role} size="small" /></TableCell>
                   <TableCell>{user.isActive !== false ? 'Active' : 'Inactive'}</TableCell>
                   <TableCell>{user.allowedForOtp !== false ? 'Allowed' : 'Blocked'}</TableCell>
-                  <TableCell align="right">
-                    <Button size="small" onClick={() => editUser(user)}>Edit</Button>
-                    <Button size="small" color="error" onClick={() => deactivateUser(user.email)} disabled={saving}>
-                      Deactivate
-                    </Button>
+                  <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                    <Tooltip title="Edit OTP user">
+                      <IconButton size="small" onClick={() => editUser(user)}>
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Deactivate OTP access">
+                      <span>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => deactivateUser(user.email)}
+                          disabled={saving}
+                        >
+                          <DeactivateIcon fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
                   </TableCell>
                 </TableRow>
               ))

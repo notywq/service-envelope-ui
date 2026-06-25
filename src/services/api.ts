@@ -18,6 +18,9 @@ import type {
   PaymentFailureResponse,
   RequestFilters,
   AuthUser,
+  ApiClientRecord,
+  ApiClientSecretResponse,
+  ApiClientScopesResponse,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -294,6 +297,55 @@ class ApiClient {
 
   async flushOtpChallenges() {
     const response = await this.client.post('/api/OTP/flush');
+    return response.data;
+  }
+
+  // ========== API CLIENT ADMIN ENDPOINTS ==========
+
+  async getApiClients(): Promise<{ clients: ApiClientRecord[] }> {
+    const response = await this.client.get('/api/admin/api-clients');
+    return response.data;
+  }
+
+  async getApiClientScopes(): Promise<ApiClientScopesResponse> {
+    const response = await this.client.get('/api/admin/api-client-scopes');
+    return response.data;
+  }
+
+  async getApiClient(clientId: string): Promise<{ client: ApiClientRecord }> {
+    const response = await this.client.get(`/api/admin/api-clients/${encodeURIComponent(clientId)}`);
+    return response.data;
+  }
+
+  async createApiClient(data: {
+    name: string;
+    role: string;
+    scopes: string[];
+    isActive: boolean;
+    metadata: Record<string, any>;
+  }): Promise<ApiClientSecretResponse> {
+    const response = await this.client.post('/api/admin/api-clients', data);
+    return response.data;
+  }
+
+  async updateApiClient(clientId: string, data: {
+    name: string;
+    role: string;
+    scopes: string[];
+    isActive: boolean;
+    metadata: Record<string, any>;
+  }): Promise<{ client: ApiClientRecord }> {
+    const response = await this.client.put(`/api/admin/api-clients/${encodeURIComponent(clientId)}`, data);
+    return response.data;
+  }
+
+  async rotateApiClientSecret(clientId: string): Promise<ApiClientSecretResponse> {
+    const response = await this.client.post(`/api/admin/api-clients/${encodeURIComponent(clientId)}/rotate-secret`);
+    return response.data;
+  }
+
+  async deleteApiClient(clientId: string) {
+    const response = await this.client.delete(`/api/admin/api-clients/${encodeURIComponent(clientId)}`);
     return response.data;
   }
 
